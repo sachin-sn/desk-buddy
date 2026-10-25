@@ -24,6 +24,8 @@ void hidBegin() {
 
 bool hidConnected() { return kb && kb->isConnected(); }
 
+int hidBondCount() { return kb ? (int)esp_ble_get_bond_device_num() : -1; }
+
 static void sendMedia(uint8_t id) {
   switch (id) {
     case MEDIA_NEXT:       kb->write(KEY_MEDIA_NEXT_TRACK); break;
@@ -69,6 +71,7 @@ bool hidRun(const char* sequence) {
 
 void hidBegin() {}
 bool hidConnected() { return false; }
+int  hidBondCount() { return -1; }
 bool hidRun(const char*) { return false; }
 
 #endif

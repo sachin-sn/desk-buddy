@@ -174,9 +174,10 @@ static void diagLine() {
   if (apActive)                          snprintf(wifi, sizeof wifi, "setup AP 'CrowPanel-Buddy' pass %s ip %s", apPin, WiFi.softAPIP().toString().c_str());
   else if (WiFi.status() == WL_CONNECTED) snprintf(wifi, sizeof wifi, "joined '%s' ip %s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
   else                                   snprintf(wifi, sizeof wifi, "not connected");
-  Serial.printf("[buddy] up %lus | last reset: %s | wifi: %s | ble: %s | heap %u psram %u\n",
+  Serial.printf("[buddy] up %lus | last reset: %s | wifi: %s | ble: %s (paired Macs: %d) | heap %u psram %u\n",
                 (unsigned long)(millis() / 1000), resetWhy(), wifi,
                 !gCfg.bleHid ? "off in settings" : hidConnected() ? "connected" : "started, waiting for a Mac",
+                hidBondCount(),
                 (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
 }
 
@@ -193,6 +194,7 @@ void netTask(void*) {
 
   bool wasConn = WiFi.status() == WL_CONNECTED;
   uint32_t tStatus = 0, tDiag = millis();
+  bool wasBle = false;
 
   for (;;) {
     webLoop();
@@ -209,6 +211,8 @@ void netTask(void*) {
       wasConn = conn;
       pollCalendar(now);
       updateStatus();
+      bool bleNow = hidConnected();
+      if (bleNow != wasBle) { wasBle = bleNow; Serial.println(bleNow ? "[net] bluetooth: Mac connected" : "[net] bluetooth: Mac disconnected"); }
     }
     if (now - tDiag > 10000) { tDiag = now; diagLine(); }
 
