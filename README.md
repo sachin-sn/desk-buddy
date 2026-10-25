@@ -129,7 +129,7 @@ helper/         Mac helper (Node, no dependencies) + LaunchAgent installer
 google/         Apps Script calendar proxy
 test/host/      unit tests for the pure logic + eye renderer (g++ only)
 tools/          backlog tooling (GitHub issues)
-docs/           DESIGN.md, BACKLOG.md, CHANGES_FROM_CLOCK.md
+docs/           DESIGN.md, POWER.md, BACKLOG.md, CHANGES_FROM_CLOCK.md
 ```
 
 ## Tests
@@ -180,7 +180,7 @@ node tools/backlog.js --issues --create        # creates labels, milestones and 
 node tools/backlog.js --issues --create --project 1 --owner <your-login>   # also adds them to Project 1
 ```
 
-`docs/CHANGES_FROM_CLOCK.md` maps every file against the earlier watch-face clock project. See `docs/DESIGN.md` for how it fits together.
+`docs/CHANGES_FROM_CLOCK.md` maps every file against the earlier watch-face clock project. See `docs/DESIGN.md` for how it fits together and `docs/POWER.md` for powering it and adding a backup battery.
 
 ## License
 

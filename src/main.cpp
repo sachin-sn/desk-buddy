@@ -7,6 +7,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include "net.h"
+#include "pins.h"
 #include "settings.h"
 #include "state.h"
 #include "ui.h"
@@ -20,7 +21,13 @@ Agenda        gAgenda{};
 
 void setup() {
   Serial.begin(115200);
-  delay(200);
+
+  // Switch the LCD/touch 3.3V rail (and the external 5V pins) on before anything talks to
+  // the display. Same order as Elecrow's example. The power LED is driven LOW there too.
+  pinMode(PIN_PWR_LED, OUTPUT);   digitalWrite(PIN_PWR_LED, LOW);
+  pinMode(PIN_LCD_PWR, OUTPUT);   digitalWrite(PIN_LCD_PWR, HIGH);
+  pinMode(PIN_EXT5V_PWR, OUTPUT); digitalWrite(PIN_EXT5V_PWR, HIGH);
+  delay(200);   // also lets the rail settle
 
   if (!LittleFS.begin(true)) Serial.println("LittleFS mount failed");   // true = format on first use
   settingsLoad();

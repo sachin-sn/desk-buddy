@@ -232,10 +232,10 @@
 
     {
       "id": "M3-01", "milestone": "M3 Ideas", "labels": ["idea", "hardware"],
-      "title": "Battery operation",
-      "files": ["src/state.h", "src/ui.cpp", "src/pins.h"],
-      "body": "The board has a LiPo connector, but this project assumes USB power. First find out whether the board offers any battery-voltage or USB-presence sensing; only then add dimming and a battery indicator.",
-      "acceptance": ["Hardware capability confirmed or ruled out in writing"]
+      "title": "Battery backup: external module, then an optional indicator",
+      "files": ["docs/POWER.md", "src/state.h", "src/ui.cpp", "src/pins.h"],
+      "body": "The board has no battery connector and no charger (Elecrow schematic V1.0): 5V only enters through the 1.25 mm 4-pin connector J37. Backup therefore needs an external charge-and-boost module feeding J37 pin 1 and 4, see docs/POWER.md. Build that, measure the buddy's real current draw, and only then decide whether a battery or mains-present indicator is worth adding (PIN_VBUS_SENSE, or an I2C fuel gauge on GPIO38/39).",
+      "acceptance": ["Backup module wired and the buddy keeps running when USB power is unplugged", "Measured current draw recorded in docs/POWER.md"]
     },
     { "id": "M3-02", "milestone": "M3 Ideas", "labels": ["idea"], "title": "Weather on the clock screen", "files": ["src/net.cpp", "src/screens.cpp", "src/state.h"], "body": "Small temperature/icon next to the date, fetched from a free weather API.", "acceptance": ["Shows current temperature"] },
     { "id": "M3-03", "milestone": "M3 Ideas", "labels": ["idea"], "title": "Pomodoro cycles", "files": ["src/countdown.h", "src/ui.cpp", "test/host/test_countdown.cpp"], "body": "Focus -> break -> focus automatically, with a daily count.", "acceptance": ["Cycle runs hands-free; tests cover the state machine"] },

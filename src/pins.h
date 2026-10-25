@@ -33,6 +33,14 @@
 // Power LED
 #define PIN_PWR_LED 40
 
+// Power gates (P-MOS switches on the board; see Eagle schematic Q10 and Q4 and Elecrow's
+// own Arduino example, which drives both HIGH before touching the display).
+//   GPIO1 HIGH = 3.3V rail for the LCD and touch controller. Nothing shows without it.
+//   GPIO2 HIGH = +5V on the two external 1.25mm UART/I2C connectors (not used here, but
+//                Elecrow's example keeps it on, so we do too).
+#define PIN_LCD_PWR   1
+#define PIN_EXT5V_PWR 2
+
 // Free test IOs. UNVERIFIED as free — confirm on your board before wiring.
 // Optional "USB power present" sense. Tap the UPS module's INPUT side (the wall
 // adapter 5V), NOT the 5V going to the board: the UPS keeps that rail alive on

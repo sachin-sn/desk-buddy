@@ -33,7 +33,7 @@ Nothing in this repository has run on a real board yet, so milestone M0 is the r
 | M2-04 | More moods and idle animations | firmware |
 | M2-05 | 12-hour clock and date format options | firmware |
 | M2-06 | Photos and a wiring/assembly page for the README | docs |
-| M3-01 | Battery operation | idea, hardware |
+| M3-01 | Battery backup: external module, then an optional indicator | idea, hardware |
 | M3-02 | Weather on the clock screen | idea |
 | M3-03 | Pomodoro cycles | idea |
 | M3-04 | Slack / Teams status and mute indicators | idea, mac-helper |
@@ -420,19 +420,21 @@ Done when:
 
 Nice-to-haves. Not planned.
 
-### M3-01 - Battery operation
+### M3-01 - Battery backup: external module, then an optional indicator
 
 Labels: `idea` `hardware`
 
-The board has a LiPo connector, but this project assumes USB power. First find out whether the board offers any battery-voltage or USB-presence sensing; only then add dimming and a battery indicator.
+The board has no battery connector and no charger (Elecrow schematic V1.0): 5V only enters through the 1.25 mm 4-pin connector J37. Backup therefore needs an external charge-and-boost module feeding J37 pin 1 and 4, see docs/POWER.md. Build that, measure the buddy's real current draw, and only then decide whether a battery or mains-present indicator is worth adding (PIN_VBUS_SENSE, or an I2C fuel gauge on GPIO38/39).
 
 Files:
+- `docs/POWER.md`
 - `src/state.h`
 - `src/ui.cpp`
 - `src/pins.h`
 
 Done when:
-- [ ] Hardware capability confirmed or ruled out in writing
+- [ ] Backup module wired and the buddy keeps running when USB power is unplugged
+- [ ] Measured current draw recorded in docs/POWER.md
 
 ### M3-02 - Weather on the clock screen
 
