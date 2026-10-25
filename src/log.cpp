@@ -7,7 +7,7 @@
 static LogRing     ring;
 static portMUX_TYPE logMux = portMUX_INITIALIZER_UNLOCKED;
 
-void logf(const char* fmt, ...) {
+void logEvent(const char* fmt, ...) {
   char buf[LOG_WIDTH];
   va_list ap;
   va_start(ap, fmt);

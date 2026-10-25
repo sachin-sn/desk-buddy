@@ -70,7 +70,7 @@ static bool requireAuth(bool allowBearer = false) {
     authFails = 0;
     return true;
   }
-  if (server.hasHeader("Authorization") && ++authFails >= 6) { lockUntil = millis() + 30000; authFails = 0; logf("web: 6 wrong passwords in a row, locked out for 30 s"); }
+  if (server.hasHeader("Authorization") && ++authFails >= 6) { lockUntil = millis() + 30000; authFails = 0; logEvent("web: 6 wrong passwords in a row, locked out for 30 s"); }
   if (gCfg.adminPass.isEmpty() && !allowBearer) sendErr(403, "no admin password set - redo the WiFi setup");
   else server.requestAuthentication(BASIC_AUTH, "Buddy");
   return false;
@@ -303,7 +303,7 @@ static void handleSettingsPost() {
   if (d["regenToken"].is<bool>() && d["regenToken"].as<bool>()) gCfg.apiToken = newToken();
 
   settingsSave();
-  logf("settings saved%s%s", calChanged ? " (calendar link changed)" : "", reboot ? ", restarting to apply" : "");
+  logEvent("settings saved%s%s", calChanged ? " (calendar link changed)" : "", reboot ? ", restarting to apply" : "");
   if (tzChanged) netApplyTime();
   if (calChanged) netRequestCalendar();
 
@@ -359,13 +359,13 @@ static void otaChunk() {
     otaErr = "";
     otaAuth = uploadAuthOk();
     if (!otaAuth) return;
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { otaErr = Update.errorString(); otaAuth = false; logf("firmware update: cannot start: %s", otaErr.c_str()); return; }
-    logf("firmware update: receiving the new firmware");
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { otaErr = Update.errorString(); otaAuth = false; logEvent("firmware update: cannot start: %s", otaErr.c_str()); return; }
+    logEvent("firmware update: receiving the new firmware");
     netPostToast("Updating firmware...");
   } else if (up.status == UPLOAD_FILE_WRITE) {
     if (otaAuth && Update.write(up.buf, up.currentSize) != up.currentSize) { otaErr = Update.errorString(); otaAuth = false; Update.abort(); }
   } else if (up.status == UPLOAD_FILE_END) {
-    if (otaAuth && !Update.end(true)) { otaErr = Update.errorString(); otaAuth = false; logf("firmware update: FAILED: %s", otaErr.c_str()); }
+    if (otaAuth && !Update.end(true)) { otaErr = Update.errorString(); otaAuth = false; logEvent("firmware update: FAILED: %s", otaErr.c_str()); }
   } else if (up.status == UPLOAD_FILE_ABORTED) {
     if (otaAuth) Update.abort();
     otaAuth = false;
@@ -380,7 +380,7 @@ static void otaDone() {
     return (void)requireAuth();
   }
   server.send(200, "application/json", "{\"ok\":true}");
-  logf("firmware update: installed");
+  logEvent("firmware update: installed");
   netRequestReboot();
 }
 

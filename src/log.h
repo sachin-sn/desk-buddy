@@ -3,7 +3,7 @@
 // Safe to call from any task. Keep lines short, and never log passwords, tokens or typed text.
 #include "logring.h"
 
-void logf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
+void logEvent(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 
 // Copies the held lines, oldest first, into out[]; returns how many (at most max).
 int logRead(LogEntry* out, int max);

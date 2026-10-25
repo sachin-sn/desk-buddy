@@ -30,9 +30,9 @@ void setup() {
   pinMode(PIN_EXT5V_PWR, OUTPUT); digitalWrite(PIN_EXT5V_PWR, HIGH);
   delay(200);   // also lets the rail settle
 
-  logf("boot: last restart was %s; free memory %u KB, PSRAM %u KB", logResetReason(),
+  logEvent("boot: last restart was %s; free memory %u KB, PSRAM %u KB", logResetReason(),
        (unsigned)(ESP.getFreeHeap() / 1024), (unsigned)(ESP.getFreePsram() / 1024));
-  if (!LittleFS.begin(true)) logf("storage: the web-editor files could not be mounted (run: pio run -t uploadfs)");   // true = format on first use
+  if (!LittleFS.begin(true)) logEvent("storage: the web-editor files could not be mounted (run: pio run -t uploadfs)");   // true = format on first use
   settingsLoad();
 
   qToUi  = xQueueCreate(6, sizeof(UiMsg));
