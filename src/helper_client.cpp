@@ -9,9 +9,11 @@ static bool     lastOk = false;
 static IPAddress cachedIp;
 static uint32_t cachedAt = 0;
 static String   cachedFor;
+static char     lastErr[72] = "";
 
 bool helperConfigured() { return !gCfg.helperHost.isEmpty(); }
 bool helperLastOk() { return lastOk; }
+const char* helperLastError() { return lastErr; }
 
 // Accepts an IPv4 address or a Bonjour name like "Sachins-MacBook.local".
 static bool resolve(IPAddress& out) {
@@ -29,18 +31,23 @@ static bool resolve(IPAddress& out) {
 }
 
 static bool post(const char* path, const String& body) {
-  if (WiFi.status() != WL_CONNECTED) { lastOk = false; return false; }
+  lastErr[0] = 0;
+  if (WiFi.status() != WL_CONNECTED) { lastOk = false; snprintf(lastErr, sizeof lastErr, "the buddy is not on WiFi"); return false; }
   IPAddress ip;
-  if (!resolve(ip)) { lastOk = false; return false; }
+  if (!resolve(ip)) { lastOk = false; snprintf(lastErr, sizeof lastErr, "cannot find '%.40s' (Mac asleep, or not on this WiFi?)", gCfg.helperHost.c_str()); return false; }
   HTTPClient http;
   http.setTimeout(3000);
-  if (!http.begin(ip.toString(), gCfg.helperPort, path)) { lastOk = false; return false; }
+  if (!http.begin(ip.toString(), gCfg.helperPort, path)) { lastOk = false; snprintf(lastErr, sizeof lastErr, "bad helper address"); return false; }
   http.addHeader("Authorization", String("Bearer ") + gCfg.apiToken);
   http.addHeader("Content-Type", "application/json");
   int code = http.POST(body);
   http.end();
   if (code <= 0) cachedFor = "";                           // connection failed: resolve again next time
   lastOk = (code == 200);
+  if (code <= 0)         snprintf(lastErr, sizeof lastErr, "no answer from %s:%u (is the helper running?)", ip.toString().c_str(), (unsigned)gCfg.helperPort);
+  else if (code == 401)  snprintf(lastErr, sizeof lastErr, "helper refused the token (copy it again into helper/config.json)");
+  else if (code == 429)  snprintf(lastErr, sizeof lastErr, "helper is rate-limiting or locked out for now");
+  else if (code != 200)  snprintf(lastErr, sizeof lastErr, "helper answered HTTP %d", code);
   return lastOk;
 }
 

@@ -5,11 +5,13 @@
 #include <Update.h>
 #include <ArduinoJson.h>
 #include <esp_system.h>
+#include <new>
 #include <time.h>
 #include "helper_client.h"
 #include "hid.h"
 #include "keycombo.h"
 #include "layout.h"
+#include "log.h"
 #include "net.h"
 #include "settings.h"
 #include "setup_page.h"
@@ -68,7 +70,7 @@ static bool requireAuth(bool allowBearer = false) {
     authFails = 0;
     return true;
   }
-  if (server.hasHeader("Authorization") && ++authFails >= 6) { lockUntil = millis() + 30000; authFails = 0; }
+  if (server.hasHeader("Authorization") && ++authFails >= 6) { lockUntil = millis() + 30000; authFails = 0; logf("web: 6 wrong passwords in a row, locked out for 30 s"); }
   if (gCfg.adminPass.isEmpty() && !allowBearer) sendErr(403, "no admin password set - redo the WiFi setup");
   else server.requestAuthentication(BASIC_AUTH, "Buddy");
   return false;
@@ -196,6 +198,25 @@ static void handleSettingsGet() {
   sendJson(d);
 }
 
+static void handleLogs() {
+  if (!requireAuth()) return;
+  LogEntry* lines = new (std::nothrow) LogEntry[LOG_LINES];
+  if (!lines) return sendErr(503, "out of memory");
+  int n = logRead(lines, LOG_LINES);
+  JsonDocument d;
+  d["up"] = millis() / 1000;
+  d["now"] = time(nullptr) > 1735689600 ? (uint32_t)time(nullptr) : 0;
+  JsonArray a = d["lines"].to<JsonArray>();
+  for (int i = 0; i < n; i++) {
+    JsonObject o = a.add<JsonObject>();
+    o["u"] = lines[i].up;
+    o["e"] = lines[i].epoch;
+    o["m"] = lines[i].text;
+  }
+  delete[] lines;
+  sendJson(d);
+}
+
 static void handleToken() {
   if (!requireAuth()) return;
   JsonDocument d;
@@ -282,6 +303,7 @@ static void handleSettingsPost() {
   if (d["regenToken"].is<bool>() && d["regenToken"].as<bool>()) gCfg.apiToken = newToken();
 
   settingsSave();
+  logf("settings saved%s%s", calChanged ? " (calendar link changed)" : "", reboot ? ", restarting to apply" : "");
   if (tzChanged) netApplyTime();
   if (calChanged) netRequestCalendar();
 
@@ -337,12 +359,13 @@ static void otaChunk() {
     otaErr = "";
     otaAuth = uploadAuthOk();
     if (!otaAuth) return;
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { otaErr = Update.errorString(); otaAuth = false; return; }
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { otaErr = Update.errorString(); otaAuth = false; logf("firmware update: cannot start: %s", otaErr.c_str()); return; }
+    logf("firmware update: receiving the new firmware");
     netPostToast("Updating firmware...");
   } else if (up.status == UPLOAD_FILE_WRITE) {
     if (otaAuth && Update.write(up.buf, up.currentSize) != up.currentSize) { otaErr = Update.errorString(); otaAuth = false; Update.abort(); }
   } else if (up.status == UPLOAD_FILE_END) {
-    if (otaAuth && !Update.end(true)) { otaErr = Update.errorString(); otaAuth = false; }
+    if (otaAuth && !Update.end(true)) { otaErr = Update.errorString(); otaAuth = false; logf("firmware update: FAILED: %s", otaErr.c_str()); }
   } else if (up.status == UPLOAD_FILE_ABORTED) {
     if (otaAuth) Update.abort();
     otaAuth = false;
@@ -357,6 +380,7 @@ static void otaDone() {
     return (void)requireAuth();
   }
   server.send(200, "application/json", "{\"ok\":true}");
+  logf("firmware update: installed");
   netRequestReboot();
 }
 
@@ -420,6 +444,7 @@ void webInit() {
   server.on("/api/layout", HTTP_GET, handleLayoutGet);
   server.on("/api/token", HTTP_GET, handleToken);
   server.on("/api/agenda", HTTP_GET, handleAgenda);
+  server.on("/api/logs", HTTP_GET, handleLogs);
 
   server.on("/api/settings", HTTP_POST, handleSettingsPost);
   server.on("/api/layout", HTTP_POST, handleLayoutPost);

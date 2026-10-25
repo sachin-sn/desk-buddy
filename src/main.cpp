@@ -6,6 +6,7 @@
 // The two cores only talk through the two queues and the small status blocks below.
 #include <Arduino.h>
 #include <LittleFS.h>
+#include "log.h"
 #include "net.h"
 #include "pins.h"
 #include "settings.h"
@@ -29,7 +30,9 @@ void setup() {
   pinMode(PIN_EXT5V_PWR, OUTPUT); digitalWrite(PIN_EXT5V_PWR, HIGH);
   delay(200);   // also lets the rail settle
 
-  if (!LittleFS.begin(true)) Serial.println("LittleFS mount failed");   // true = format on first use
+  logf("boot: last restart was %s; free memory %u KB, PSRAM %u KB", logResetReason(),
+       (unsigned)(ESP.getFreeHeap() / 1024), (unsigned)(ESP.getFreePsram() / 1024));
+  if (!LittleFS.begin(true)) logf("storage: the web-editor files could not be mounted (run: pio run -t uploadfs)");   // true = format on first use
   settingsLoad();
 
   qToUi  = xQueueCreate(6, sizeof(UiMsg));

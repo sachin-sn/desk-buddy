@@ -8,3 +8,4 @@ bool helperConfigured();
 bool helperAction(const char* id);                       // POST /action
 bool helperNotify(const char* title, const char* body);  // POST /notify
 bool helperLastOk();                                     // result of the most recent call
+const char* helperLastError();                           // plain-words reason for the last failure, "" if it worked

@@ -367,7 +367,7 @@ function renderStatus() {
     ['Web files', `${Math.round(st.fsUsed / 1024)} KB of ${Math.round(st.fsTotal / 1048576)} MB used`]];
   $('#dev').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: String(v) })]));
   $('#hostHint').textContent = (S.cfg.host || st.host || 'buddy') + '.local';
-  $('#calState').textContent = { off: 'Calendar is off.', ok: 'Connected - events refresh every 5 minutes.', pending: st.timeSynced ? 'Fetching…' : 'Waiting for the buddy\'s clock to sync (it needs internet access).', error: 'Last fetch failed' + (st.calErr ? ': ' + st.calErr : '') + '. Check the URL and that the script is deployed for "Anyone".' }[st.cal] || '';
+  $('#calState').textContent = { off: 'Calendar is off.', ok: 'Connected - events refresh every 5 minutes.', pending: st.timeSynced ? 'Fetching…' : 'Waiting for the buddy\'s clock to sync (it needs internet access).', error: 'Last fetch failed' + (st.calErr ? ': ' + st.calErr : '') + '. Check the URL and that the script is deployed for "Anyone". The Logs tab has the history.' }[st.cal] || '';
 }
 function fmtUp(sec) { sec = sec | 0; const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return (d ? d + 'd ' : '') + (hh || d ? hh + 'h ' : '') + m + 'm'; }
 
@@ -524,10 +524,49 @@ $('#fwGo').addEventListener('click', ev => guarded(ev.target, async () => {
   waitForDevice();
 }));
 
+// ------------------------------------------------------------------ logs tab
+// Log lines can contain text that came from outside (for example a message from the calendar script),
+// so they are only ever added with textContent, never as HTML.
+let logText = '', logTimer = null;
+const LOG_BAD = /fail|error|lost|refus|crash|brownout|not connected|cannot|could not|wrong|locked|rate-limit/i;
+const pad2 = n => String(n).padStart(2, '0');
+function logTime(l) {
+  if (l.e) { const d = new Date(l.e * 1000); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; }
+  return `+${pad2(Math.floor(l.u / 3600))}:${pad2(Math.floor(l.u % 3600 / 60))}:${pad2(l.u % 60)}`;   // time since the buddy started
+}
+async function loadLogs() {
+  const box = $('#logOut');
+  const j = await api('/api/logs');
+  const lines = j.lines || [];
+  const stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;       // keep following the end unless the user scrolled up
+  logText = lines.map(l => logTime(l) + '  ' + l.m).join('\n');
+  box.replaceChildren(...(lines.length
+    ? lines.map(l => h('div', { class: 'logline' + (LOG_BAD.test(l.m) ? ' bad' : '') }, h('time', { text: logTime(l) }), h('span', { text: l.m })))
+    : [h('div', { class: 'muted', text: 'Nothing logged yet.' })]));
+  if (stick) box.scrollTop = box.scrollHeight;
+}
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  const ta = h('textarea', { style: 'position:fixed;left:-9999px;top:0' });      // http://buddy.local is not a secure context
+  ta.value = text; document.body.append(ta); ta.select();
+  const ok = document.execCommand('copy');
+  ta.remove();
+  return ok ? Promise.resolve() : Promise.reject(new Error('Could not copy - select the log and copy it by hand'));
+}
+function logsVisible(on) {
+  clearInterval(logTimer); logTimer = null;
+  if (!on) return;
+  guarded(null, loadLogs);
+  logTimer = setInterval(() => { if (!document.hidden && $('#logAuto').checked) loadLogs().catch(() => { /* next tick */ }); }, 3000);
+}
+$('#logRefresh').addEventListener('click', ev => guarded(ev.target, loadLogs));
+$('#logCopy').addEventListener('click', ev => guarded(ev.target, async () => { await copyText(logText); toast('Copied', 'good'); }));
+
 // ------------------------------------------------------------------ tabs + boot
 function showTab(name) {
   $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   $$('.tab').forEach(t => t.classList.toggle('on', t.id === 'tab-' + name));
+  logsVisible(name === 'logs');
   try { history.replaceState(null, '', '#' + name); } catch (_) { /* ignore */ }
 }
 $$('#tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));

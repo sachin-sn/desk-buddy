@@ -20,6 +20,7 @@
   <button data-tab="timers">Timers</button>
   <button data-tab="connect">Calendar &amp; Mac</button>
   <button data-tab="settings">Settings</button>
+  <button data-tab="logs">Logs</button>
   <button data-tab="firmware">Firmware</button>
 </nav>
 
@@ -150,6 +151,20 @@
     <div class="row end">
       <button id="reboot" class="ghost">Restart buddy</button>
       <button id="settingsSave">Save settings</button>
+    </div>
+  </section>
+
+  <!-- ============================================================ LOGS -->
+  <section id="tab-logs" class="tab">
+    <div class="card">
+      <h2>Device log</h2>
+      <p class="muted">What the buddy has been doing, newest at the bottom: WiFi, Bluetooth, calendar and Mac-helper problems and why. The last 48 events are kept in its memory and cleared when it restarts. Passwords, tokens and shortcut text are never logged.</p>
+      <div class="row end">
+        <label class="check"><input id="logAuto" type="checkbox" checked> Update every 3 s</label>
+        <button id="logCopy" class="ghost">Copy</button>
+        <button id="logRefresh" class="ghost">Refresh</button>
+      </div>
+      <div id="logOut" class="logbox" role="log" aria-live="off" tabindex="0"></div>
     </div>
   </section>
 

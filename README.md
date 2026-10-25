@@ -158,6 +158,7 @@ Verified in a Linux sandbox:
 
 ## Troubleshooting
 
+- **Something is not working and you want to know why** - open the **Logs** tab in the web editor (`http://buddy.local`). It lists the last 48 events with the reason for each failure: WiFi disconnects, Bluetooth connects, calendar errors (including the TLS reason), Mac-helper problems and restarts. **Copy** puts it on the clipboard to paste into a bug report. If the buddy is not reachable at all, `pio device monitor` prints the same lines. Passwords, tokens and shortcut text are never logged.
 - **`buddy.local` does not open** - long-press the knob to see the IP address and use that. Make sure the Mac is on the same 2.4 GHz network (guest networks often isolate devices).
 - **"Pair Bluetooth first"** - the Mac is not connected to *CrowPanel Buddy*. If it is paired but shortcuts do nothing, remove the device in System Settings -> Bluetooth and pair again.
 - **"Mac helper offline"** - check `tail -f ~/Library/Logs/DeskBuddyHelper.log`; confirm the address in the web editor and that the token in `helper/config.json` matches the one shown there.

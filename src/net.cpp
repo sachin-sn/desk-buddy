@@ -8,6 +8,7 @@
 #include "helper_client.h"
 #include "hid.h"
 #include "layout.h"
+#include "log.h"
 #include "settings.h"
 #include "state.h"
 #include "web.h"
@@ -44,7 +45,7 @@ void netApplyTime() {
   configTzTime(gCfg.tz.c_str(), "pool.ntp.org", "time.google.com", "time.cloudflare.com");
 }
 
-void netRequestReboot()   { rebootAt = millis() + 800; }
+void netRequestReboot()   { rebootAt = millis() + 800; logf("restarting in a moment"); }
 void netRequestCalendar() { calWanted = true; }
 bool netApActive()        { return apActive; }
 
@@ -56,6 +57,7 @@ static void startAp() {
   WiFi.softAP("CrowPanel-Buddy", apPin);
   dns.start(53, "*", WiFi.softAPIP());
   apActive = true;
+  logf("wifi: setup network 'CrowPanel-Buddy' is up (password is on the buddy's screen)");
 }
 
 static void stopAp() {
@@ -64,18 +66,53 @@ static void stopAp() {
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_STA);
   apActive = false;
+  logf("wifi: setup network stopped");
+}
+
+static const char* wifiReasonText(uint8_t r) {
+  switch (r) {
+    case 2:   return "authentication expired";
+    case 8:   return "router dropped us";
+    case 15:  return "4-way handshake timed out: wrong password?";
+    case 200: return "router stopped answering";
+    case 201: return "network not found: out of range, or 5 GHz only?";
+    case 202: return "authentication failed: wrong password?";
+    case 203: return "association failed";
+    case 204: return "handshake timed out";
+    case 205: return "connection failed";
+    default:  return "see ESP32 WiFi reason codes";
+  }
+}
+
+// Runs on the WiFi event task. Logs why the router link dropped, but only when the reason changes
+// or every 30 s, so a missing router does not flood the log.
+static void onWifiEvent(WiFiEvent_t ev, WiFiEventInfo_t info) {
+  if (ev != ARDUINO_EVENT_WIFI_STA_DISCONNECTED) return;
+  static uint8_t lastReason = 0;
+  static uint32_t lastAt = 0;
+  uint8_t r = info.wifi_sta_disconnected.reason;
+  if (r != lastReason || millis() - lastAt > 30000) {
+    lastReason = r;
+    lastAt = millis();
+    logf("wifi: not connected, reason %u (%s)", (unsigned)r, wifiReasonText(r));
+  }
 }
 
 static void wifiBoot() {
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
   WiFi.setHostname(gCfg.host.c_str());
-  if (gCfg.ssid.isEmpty()) { startAp(); return; }
+  WiFi.onEvent(onWifiEvent);
+  if (gCfg.ssid.isEmpty()) { logf("wifi: no network saved yet, starting setup"); startAp(); return; }
+  logf("wifi: joining '%s'", gCfg.ssid.c_str());
   WiFi.mode(WIFI_STA);
   WiFi.begin(gCfg.ssid.c_str(), gCfg.pass.c_str());
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) delay(200);
-  if (WiFi.status() != WL_CONNECTED) startAp();    // router may just be slow: STA keeps retrying
+  if (WiFi.status() != WL_CONNECTED) {
+    logf("wifi: could not join '%s' within 20 s, starting setup network (still retrying)", gCfg.ssid.c_str());
+    startAp();    // router may just be slow: STA keeps retrying
+  }
 }
 
 static void onConnected() {
@@ -84,6 +121,7 @@ static void onConnected() {
     mdnsUp = true;
   }
   netApplyTime();
+  logf("wifi: joined '%s', address %s, signal %d dBm", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
   if (apActive && !gCfg.ssid.isEmpty()) stopAp();
 }
 
@@ -120,16 +158,24 @@ static void pollCalendar(uint32_t now) {
   if (calState == CAL_NOT_SET) calState = CAL_PENDING;
   Agenda a;
   String err;
+  static uint32_t errLoggedAt = 0;
+  static char     errLogged[96] = "";
   if (calendarFetch(a, err)) {
     portENTER_CRITICAL(&gMux);
     gAgenda = a;
     portEXIT_CRITICAL(&gMux);
+    if (calState != CAL_OK) logf("calendar: ok, %d upcoming event(s)", (int)a.n);   // later successes stay quiet
     calState = CAL_OK;
     calErrText[0] = 0;
-    Serial.printf("[cal] ok: %d event(s)\n", (int)a.n);
+    errLogged[0] = 0;
     calNextAt = now + CAL_EVERY_MS;
   } else {
-    Serial.printf("[cal] FAILED: %s\n", err.c_str());
+    // retried every minute: log a new reason at once, the same reason only every 10 minutes
+    if (strcmp(errLogged, err.c_str()) != 0 || now - errLoggedAt > 10UL * 60UL * 1000UL) {
+      logf("calendar: FAILED: %s", err.c_str());
+      strlcpy(errLogged, err.c_str(), sizeof errLogged);
+      errLoggedAt = now;
+    }
     strlcpy(calErrText, err.c_str(), sizeof(calErrText));
     calState = CAL_ERROR;
     calNextAt = now + CAL_RETRY_MS;
@@ -140,13 +186,20 @@ static void pollCalendar(uint32_t now) {
 static void handleCmd(const NetCmd& c) {
   switch (c.type) {
     case NC_HID:
-      if (gCfg.bleHid && !hidRun(c.a)) netPostToast("Shortcut failed", true);
+      if (gCfg.bleHid && !hidRun(c.a)) {
+        // the shortcut text itself is never logged: it may contain typed text
+        logf("shortcut failed: %s", hidConnected() ? "the key sequence is invalid" : "the Mac is not connected over Bluetooth");
+        netPostToast("Shortcut failed", true);
+      }
       break;
     case NC_ACTION:
-      if (!helperAction(c.a)) netPostToast("Mac helper offline", true);
+      if (!helperAction(c.a)) {
+        logf("mac helper: action '%s' failed: %s", c.a, helperLastError());
+        netPostToast("Mac helper offline", true);
+      }
       break;
     case NC_NOTIFY:
-      helperNotify(c.a, c.b);                       // best effort
+      if (!helperNotify(c.a, c.b)) logf("mac helper: notification failed: %s", helperLastError());    // best effort
       break;
     case NC_SAVE_TIMER: {
       bool timeOk = time(nullptr) > 1735689600;
@@ -159,20 +212,6 @@ static void handleCmd(const NetCmd& c) {
 }
 
 // ------------------------------------------------------------------ serial diagnostics
-static const char* resetWhy() {
-  switch (esp_reset_reason()) {
-    case ESP_RST_POWERON:  return "power-on";
-    case ESP_RST_SW:       return "software restart";
-    case ESP_RST_PANIC:    return "CRASH (panic)";
-    case ESP_RST_INT_WDT:
-    case ESP_RST_TASK_WDT:
-    case ESP_RST_WDT:      return "watchdog";
-    case ESP_RST_BROWNOUT: return "BROWNOUT (power dip)";
-    case ESP_RST_DEEPSLEEP:return "deep sleep";
-    default:               return "other";
-  }
-}
-
 // One line every 10 s, so opening the serial monitor at any moment shows where things stand.
 static void diagLine() {
   char wifi[96];
@@ -180,7 +219,7 @@ static void diagLine() {
   else if (WiFi.status() == WL_CONNECTED) snprintf(wifi, sizeof wifi, "joined '%s' ip %s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
   else                                   snprintf(wifi, sizeof wifi, "not connected");
   Serial.printf("[buddy] up %lus | last reset: %s | wifi: %s | ble: %s (paired Macs: %d) | heap %u psram %u\n",
-                (unsigned long)(millis() / 1000), resetWhy(), wifi,
+                (unsigned long)(millis() / 1000), logResetReason(), wifi,
                 !gCfg.bleHid ? "off in settings" : hidConnected() ? "connected" : "started, waiting for a Mac",
                 hidBondCount(),
                 (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
@@ -188,18 +227,21 @@ static void diagLine() {
 
 // ------------------------------------------------------------------ task
 void netTask(void*) {
-  Serial.println("[net] task started");
   wifiBoot();
-  Serial.println("[net] wifi up");
   webInit();
   if (WiFi.status() == WL_CONNECTED) onConnected();
-  if (gCfg.bleHid) hidBegin();
-  Serial.println("[net] web server and bluetooth started");
+  if (gCfg.bleHid) {
+    hidBegin();
+    logf("bluetooth: keyboard 'CrowPanel Buddy' started, paired Macs: %d", hidBondCount());
+  } else {
+    logf("bluetooth: switched off in settings");
+  }
+  logf("web editor ready at http://%s.local", gCfg.host.c_str());
   diagLine();
 
   bool wasConn = WiFi.status() == WL_CONNECTED;
   uint32_t tStatus = 0, tDiag = millis();
-  bool wasBle = false;
+  bool wasBle = false, wasTime = false;
 
   for (;;) {
     webLoop();
@@ -213,11 +255,15 @@ void netTask(void*) {
       tStatus = now;
       bool conn = WiFi.status() == WL_CONNECTED;
       if (conn && !wasConn) { onConnected(); calWanted = true; }
+      if (!conn && wasConn) logf("wifi: connection to the router was lost");
       wasConn = conn;
+      bool timeNow = time(nullptr) > 1735689600;
+      if (timeNow && !wasTime) logf("clock: synced from the internet");
+      wasTime = timeNow;
       pollCalendar(now);
       updateStatus();
       bool bleNow = hidConnected();
-      if (bleNow != wasBle) { wasBle = bleNow; Serial.println(bleNow ? "[net] bluetooth: Mac connected" : "[net] bluetooth: Mac disconnected"); }
+      if (bleNow != wasBle) { wasBle = bleNow; logf("bluetooth: Mac %s", bleNow ? "connected" : "disconnected"); }
     }
     if (now - tDiag > 10000) { tDiag = now; diagLine(); }
 
