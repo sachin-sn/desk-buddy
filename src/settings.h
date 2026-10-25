@@ -1,10 +1,12 @@
 #pragma once
 #include <Arduino.h>
+#include "wifilist.h"
 
 // Persistent settings (NVS). Strings are only touched from core 0; the single-byte
 // fields are read from core 1 as well (single-byte reads are atomic).
 struct Settings {
-  String ssid, pass, adminPass, host, tz;
+  WifiList wifi;                 // saved WiFi networks, in priority order (up to WIFI_MAX)
+  String adminPass, host, tz;
   String calUrl;                 // Google Apps Script web-app URL including ?t=TOKEN
   String helperHost;             // Mac helper: hostname.local or IPv4
   uint16_t helperPort = 8765;

@@ -11,10 +11,32 @@ static String randomToken() {
   return String(buf);
 }
 
+// Saved networks live under ws0..ws4 (name) and wp0..wp4 (password). Older firmware kept a single
+// network under "ssid"/"pass"; it becomes the first entry. Loading is lenient (no password rules) so a
+// network that worked before is never dropped.
+static void addWifiRaw(const String& ssid, const String& pass) {
+  if (ssid.isEmpty() || ssid.length() > WIFI_SSID_MAX || pass.length() > WIFI_PASS_MAX || gCfg.wifi.n >= WIFI_MAX) return;
+  WifiNet& w = gCfg.wifi.net[gCfg.wifi.n++];
+  memset(&w, 0, sizeof w);
+  strncpy(w.ssid, ssid.c_str(), WIFI_SSID_MAX);
+  strncpy(w.pass, pass.c_str(), WIFI_PASS_MAX);
+}
+
+static void loadWifi() {      // prefs must be open
+  wifiClear(gCfg.wifi);
+  if (prefs.isKey("ws0")) {
+    for (int i = 0; i < WIFI_MAX; i++) {
+      char ks[4] = {'w', 's', (char)('0' + i), 0}, kp[4] = {'w', 'p', (char)('0' + i), 0};
+      addWifiRaw(prefs.getString(ks, ""), prefs.getString(kp, ""));
+    }
+  } else {
+    addWifiRaw(prefs.getString("ssid", ""), prefs.getString("pass", ""));
+  }
+}
+
 void settingsLoad() {
   prefs.begin("buddy", true);
-  gCfg.ssid        = prefs.getString("ssid", "");
-  gCfg.pass        = prefs.getString("pass", "");
+  loadWifi();
   gCfg.adminPass   = prefs.getString("admin", "");
   gCfg.host        = prefs.getString("host", "buddy");
   gCfg.tz          = prefs.getString("tz", "IST-5:30");
@@ -45,8 +67,13 @@ void settingsLoad() {
 
 void settingsSave() {
   prefs.begin("buddy", false);
-  prefs.putString("ssid", gCfg.ssid);
-  prefs.putString("pass", gCfg.pass);
+  for (int i = 0; i < WIFI_MAX; i++) {
+    char ks[4] = {'w', 's', (char)('0' + i), 0}, kp[4] = {'w', 'p', (char)('0' + i), 0};
+    prefs.putString(ks, i < gCfg.wifi.n ? gCfg.wifi.net[i].ssid : "");
+    prefs.putString(kp, i < gCfg.wifi.n ? gCfg.wifi.net[i].pass : "");
+  }
+  prefs.remove("ssid");              // the single-network keys of older firmware, now migrated
+  prefs.remove("pass");
   prefs.putString("admin", gCfg.adminPass);
   prefs.putString("host", gCfg.host);
   prefs.putString("tz", gCfg.tz);

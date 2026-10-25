@@ -95,6 +95,18 @@ Open `http://buddy.local` -> **Settings -> Weather**, type your city, press **Se
 
 *Preview rendered on a PC from the same code the board runs; the real display's colours and anti-aliasing will differ slightly.*
 
+### 7. Several WiFi networks (home, office, phone hotspot)
+
+The buddy remembers up to **5** WiFi networks. Open **Settings -> WiFi networks** in the web editor:
+
+- **Scan** lists what the buddy can see (name, signal, open or password); click one, type its password and **Save network**. Typing a name by hand also works, which is how you add a hidden network.
+- The order of the list is the priority. At start-up, and whenever it loses WiFi, the buddy joins the **first saved network that is in range**; the arrows move a network up or down. If a join fails it moves on to the next one after 20 seconds.
+- **Connect now** switches to a network immediately (this page loses its connection while it does, and the buddy may get a new address: use `http://buddy.local` or the address on its screen). If that network cannot be joined, the buddy goes back to the others by itself.
+- **Remove** forgets a network and its password. Passwords are stored on the buddy and are never sent back to the browser.
+- Moved the buddy somewhere new? After 2 minutes with no usable network it brings the **CrowPanel-Buddy** setup network up again (long-press the knob for its password). Joining your new network there adds it at the top of the list and keeps the old ones.
+
+Updating from older firmware keeps your existing network as the first entry. The settings screen (long-press) shows the name of the network the buddy is on.
+
 ## Using it
 
 | Screen | Get there | Touch | Knob |
@@ -130,7 +142,7 @@ The editor checks the syntax as you type, and the **play button** next to each r
 ```
 src/            firmware (C++, Arduino framework)
   eyes.h          eye animation + mood logic (pure; shared with host tests)
-  keycombo.h      shortcut parser (pure)         agenda.h  countdown.h  weather.h  weathericon.h  (pure)
+  keycombo.h      shortcut parser (pure)         agenda.h  countdown.h  weather.h  weathericon.h  wifilist.h  (pure)
   buddy.cpp       draws the eyes into a sprite   screens.cpp  LVGL screens
   ui.cpp          modes, input, alerts, LEDs     (core 1, never blocks)
   net.cpp web.cpp WiFi, setup portal, web API    (core 0)
@@ -146,7 +158,7 @@ docs/           DESIGN.md, POWER.md, BACKLOG.md, CHANGES_FROM_CLOCK.md
 ## Tests
 
 ```sh
-make -C test/host test              # C++ logic: countdown, agenda, shortcuts, eyes, default layout, log buffer, weather
+make -C test/host test              # C++ logic: countdown, agenda, shortcuts, eyes, default layout, log buffer, weather, weather icons, WiFi list
 make -C test/host render            # renders test/host/out/eyes_sheet.png (needs Pillow)
 (cd helper && npm test)             # Mac helper
 (cd google && node --test test/*.test.js)   # calendar script against a fake CalendarApp
@@ -158,12 +170,12 @@ The same checks, plus a full `pio run`, run in GitHub Actions (`.github/workflow
 ## What has and has not been verified
 
 Verified in a Linux sandbox:
-- all pure logic (countdown, agenda alerts, shortcut parser, eye engine, default layout, log buffer, weather words and URL) by host tests built as C++11, the standard the ESP32 core uses
+- all pure logic (countdown, agenda alerts, shortcut parser, eye engine, default layout, log buffer, weather words and URL, weather icons, saved WiFi networks) by host tests built as C++11, the standard the ESP32 core uses
 - every firmware source file compiles with the real ESP32-S3 GCC 12.2 against Arduino-ESP32 2.0.17 and the pinned libraries with `-Wall -Wextra`, no warnings; every function the sources call is defined (not linked into an image)
 - the web editor in headless Chromium against a simulated device (editing, validation, saving, test buttons, phone width)
 - the Mac helper (18 tests, plus an end-to-end run with a fake buddy) and the calendar script (11 tests)
 
-**Not verified** (needs your hardware, Mac or Google account): the display, touch, knob, LEDs and backlight; WiFi, mDNS and TLS to Google; Bluetooth pairing and every shortcut on macOS; `launchctl`, `osascript`, `vm_stat`, `open`, `shortcuts` and the macOS permission prompts; the real Google Calendar API; OTA update; and the PlatformIO build itself. Pin numbers come from the Elecrow wiki. Work through milestone M0 in [docs/BACKLOG.md](docs/BACKLOG.md).
+**Not verified** (needs your hardware, Mac or Google account): the display, touch, knob, LEDs and backlight; WiFi, mDNS and TLS to Google; joining, roaming and switching between several saved WiFi networks; Bluetooth pairing and every shortcut on macOS; `launchctl`, `osascript`, `vm_stat`, `open`, `shortcuts` and the macOS permission prompts; the real Google Calendar API; OTA update; and the PlatformIO build itself. Pin numbers come from the Elecrow wiki. Work through milestone M0 in [docs/BACKLOG.md](docs/BACKLOG.md).
 
 ## Troubleshooting
 

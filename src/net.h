@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "wifilist.h"
 
 // Core 0: WiFi, setup portal, web server, NTP, calendar polling, Mac helper, BLE keyboard, NVS writes.
 void netTask(void* arg);
@@ -11,4 +12,7 @@ void netApplyTime();                                    // (re)configure timezon
 void netRequestReboot();                                // reboot shortly, after the HTTP reply is sent
 void netRequestCalendar();                              // fetch the calendar at the next opportunity
 void netRequestWeather();                               // fetch the weather at the next opportunity
+int  netScan(WifiHit* hits, int maxHits);                     // scan (blocks 2-4 s); one entry per name, strongest first; -1 on failure
+void netWifiListChanged();                              // the saved networks were edited: re-plan the order to try them in
+void netRequestWifiSwitch(const char* ssid);            // leave this network and join the saved one with that name
 bool netApActive();

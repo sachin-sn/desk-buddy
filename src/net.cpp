@@ -20,6 +20,15 @@ static uint32_t rebootAt = 0;
 static bool     mdnsUp = false;
 static char     apPin[12] = "";
 
+// WiFi roaming: the saved networks in the order to try them (see wifilist.h)
+static uint8_t  wOrder[WIFI_MAX];
+static uint8_t  wOrderN = 0, wTry = 0;
+static uint32_t wTryAt = 0;                  // millis() when the current join attempt started
+static uint32_t wScanAt = 0;                 // millis() of the last scan
+static uint32_t wLostAt = 0;                 // millis() since when we have had no WiFi (0 = connected)
+static char     wSwitchTo[WIFI_SSID_MAX + 1] = "";
+static bool     wSwitchPending = false;
+
 static bool     calWanted = true;            // fetch as soon as WiFi and time are ready
 static uint32_t calNextAt = 0;               // millis() of the next scheduled fetch
 static uint8_t  calState = CAL_NOT_SET;
@@ -55,6 +64,11 @@ void netApplyTime() {
 void netRequestReboot()   { rebootAt = millis() + 800; logEvent("restarting in a moment"); }
 void netRequestCalendar() { calWanted = true; }
 void netRequestWeather()  { wxWanted = true; }
+void netWifiListChanged() { wOrderN = 0; }
+void netRequestWifiSwitch(const char* ssid) {
+  strlcpy(wSwitchTo, ssid, sizeof wSwitchTo);
+  wSwitchPending = true;
+}
 bool netApActive()        { return apActive; }
 
 // ------------------------------------------------------------------ WiFi
@@ -80,7 +94,7 @@ static void stopAp() {
 static const char* wifiReasonText(uint8_t r) {
   switch (r) {
     case 2:   return "authentication expired";
-    case 8:   return "router dropped us";
+    case 8:   return "left the network (we switched, or the router dropped us)";
     case 15:  return "4-way handshake timed out: wrong password?";
     case 200: return "router stopped answering";
     case 201: return "network not found: out of range, or 5 GHz only?";
@@ -106,21 +120,114 @@ static void onWifiEvent(WiFiEvent_t ev, WiFiEventInfo_t info) {
   }
 }
 
+// Scan for access points (blocks for 2-4 s): one entry per network name, strongest first. Returns how many
+// were stored (at most maxHits), or -1 if the scan failed.
+int netScan(WifiHit* hits, int maxHits) {
+  int n = WiFi.scanNetworks(false, false);
+  if (n < 0) { WiFi.scanDelete(); return -1; }
+  int k = 0;
+  for (int i = 0; i < n && k < maxHits; i++) {
+    String s = WiFi.SSID(i);
+    if (s.isEmpty() || s.length() > WIFI_SSID_MAX) continue;
+    memset(&hits[k], 0, sizeof hits[k]);
+    strncpy(hits[k].ssid, s.c_str(), WIFI_SSID_MAX);
+    hits[k].rssi = (int8_t)WiFi.RSSI(i);
+    hits[k].open = WiFi.encryptionType(i) == WIFI_AUTH_OPEN;
+    k++;
+  }
+  WiFi.scanDelete();
+  return wifiTidyHits(hits, k);
+}
+
+// Decide the order to try the saved networks in. With only one saved network there is nothing to choose,
+// so it is not scanned for.
+static void wifiPlan(bool rescan) {
+  WifiHit hits[40];
+  int nh = 0;
+  if (rescan && gCfg.wifi.n > 1) {
+    nh = netScan(hits, 40);
+    wScanAt = millis();
+    if (nh < 0) { logEvent("wifi: scan failed, trying the saved networks in list order"); nh = 0; }
+  }
+  wOrderN = (uint8_t)wifiOrder(gCfg.wifi, nh > 0 ? hits : nullptr, nh, wOrder);
+  wTry = 0;
+  if (gCfg.wifi.n > 1 && nh > 0) {
+    int seen = 0;
+    for (int i = 0; i < gCfg.wifi.n; i++) for (int h = 0; h < nh; h++) if (strcmp(hits[h].ssid, gCfg.wifi.net[i].ssid) == 0) { seen++; break; }
+    static int lastNh = -1, lastSeen = -1;                       // the same answer every minute is not news
+    if (nh != lastNh || seen != lastSeen) {
+      lastNh = nh; lastSeen = seen;
+      logEvent("wifi: %d network(s) in range, %d of %d saved ones among them", nh, seen, (int)gCfg.wifi.n);
+    }
+  }
+}
+
+static void wifiBegin(uint8_t idx) {
+  const WifiNet& w = gCfg.wifi.net[idx];
+  static char lastJoin[WIFI_SSID_MAX + 1] = "";
+  static uint32_t lastJoinLog = 0;
+  if (strcmp(lastJoin, w.ssid) != 0 || millis() - lastJoinLog > 300000) {      // a missing router must not fill the log
+    strlcpy(lastJoin, w.ssid, sizeof lastJoin);
+    lastJoinLog = millis();
+    logEvent("wifi: joining '%s'", w.ssid);
+  }
+  WiFi.begin(w.ssid, w.pass[0] ? w.pass : nullptr);          // no password = open network
+  wTryAt = millis();
+}
+
 static void wifiBoot() {
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
   WiFi.setHostname(gCfg.host.c_str());
   WiFi.onEvent(onWifiEvent);
-  if (gCfg.ssid.isEmpty()) { logEvent("wifi: no network saved yet, starting setup"); startAp(); return; }
-  logEvent("wifi: joining '%s'", gCfg.ssid.c_str());
+  if (gCfg.wifi.n == 0) { logEvent("wifi: no network saved yet, starting setup"); startAp(); return; }
   WiFi.mode(WIFI_STA);
-  WiFi.begin(gCfg.ssid.c_str(), gCfg.pass.c_str());
-  uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) delay(200);
-  if (WiFi.status() != WL_CONNECTED) {
-    logEvent("wifi: could not join '%s' within 20 s, starting setup network (still retrying)", gCfg.ssid.c_str());
-    startAp();    // router may just be slow: STA keeps retrying
+  wifiPlan(true);
+  // Try the saved networks in turn: 20 s for a single one, 12 s each when there are several, 35 s in all.
+  uint32_t perTry = wOrderN == 1 ? 20000 : 12000, t0 = millis();
+  for (uint8_t i = 0; i < wOrderN && millis() - t0 < 35000; i++) {
+    wifiBegin(wOrder[i]);
+    wTry = (uint8_t)(i + 1);
+    uint32_t a = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - a < perTry) delay(200);
+    if (WiFi.status() == WL_CONNECTED) return;
   }
+  logEvent("wifi: could not join a saved network, starting setup network (still retrying)");
+  startAp();    // the router may just be slow: the buddy keeps trying in the background
+}
+
+// Called once a second. When there is no WiFi it keeps working through the saved networks (20 s each),
+// jumps to a network the person asked for in the web editor, and offers the setup network after 2 minutes
+// without any connection (for example after moving the buddy to a new place).
+static void wifiRoam(uint32_t now) {
+  if (WiFi.status() == WL_CONNECTED && !wSwitchPending) { wLostAt = 0; return; }
+  if (gCfg.wifi.n == 0) return;
+  if (wLostAt == 0) wLostAt = now;
+
+  if (wSwitchPending) {
+    wSwitchPending = false;
+    int i = wifiFind(gCfg.wifi, wSwitchTo);
+    if (i < 0) return;
+    logEvent("wifi: switching to '%s' as asked in the web editor", wSwitchTo);
+    WiFi.disconnect(false, false);
+    wifiBegin((uint8_t)i);
+    wLostAt = now;
+    return;
+  }
+
+  if (!apActive && now - wLostAt > 120000) {
+    logEvent("wifi: no connection for 2 minutes, starting the setup network (long-press the knob for its password)");
+    startAp();
+  }
+  if (apActive && WiFi.softAPgetStationNum() > 0) return;         // someone is using the setup page: do not scan or switch under them
+  if (now - wTryAt < 20000) return;                               // give the current attempt time (DHCP can be slow)
+
+  if (wOrderN == 0 || (gCfg.wifi.n > 1 && now - wScanAt > 60000)) wifiPlan(true);
+  if (wOrderN == 0) return;
+  uint8_t idx = wOrder[wTry % wOrderN];
+  if (idx >= gCfg.wifi.n) { wOrderN = 0; return; }               // the list was edited since the plan was made
+  wifiBegin(idx);
+  wTry++;
 }
 
 static void onConnected() {
@@ -130,7 +237,7 @@ static void onConnected() {
   }
   netApplyTime();
   logEvent("wifi: joined '%s', address %s, signal %d dBm", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
-  if (apActive && !gCfg.ssid.isEmpty()) stopAp();
+  if (apActive && gCfg.wifi.n > 0) stopAp();
 }
 
 static void updateStatus() {
@@ -138,7 +245,7 @@ static void updateStatus() {
   bool conn = WiFi.status() == WL_CONNECTED;
   s.connected = conn;
   s.apMode = apActive;
-  s.setupNeeded = gCfg.ssid.isEmpty();
+  s.setupNeeded = gCfg.wifi.n == 0;
   s.rssi = conn ? WiFi.RSSI() : 0;
   strlcpy(s.ssid, conn ? WiFi.SSID().c_str() : "", sizeof(s.ssid));
   strlcpy(s.ip, conn ? WiFi.localIP().toString().c_str()
@@ -314,6 +421,7 @@ void netTask(void*) {
       bool timeNow = time(nullptr) > 1735689600;
       if (timeNow && !wasTime) logEvent("clock: synced from the internet");
       wasTime = timeNow;
+      wifiRoam(now);
       pollCalendar(now);
       pollWeather(now);
       updateStatus();

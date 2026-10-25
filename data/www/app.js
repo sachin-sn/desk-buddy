@@ -368,6 +368,7 @@ function renderStatus() {
   $('#dev').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: String(v) })]));
   $('#hostHint').textContent = (S.cfg.host || st.host || 'buddy') + '.local';
   $('#wxState').textContent = wxStatusText(st);
+  renderWifi();
   $('#calState').textContent = { off: 'Calendar is off.', ok: 'Connected - events refresh every 5 minutes.', pending: st.timeSynced ? 'Fetching…' : 'Waiting for the buddy\'s clock to sync (it needs internet access).', error: 'Last fetch failed' + (st.calErr ? ': ' + st.calErr : '') + '. Check the URL and that the script is deployed for "Anyone". The Logs tab has the history.' }[st.cal] || '';
 }
 function fmtUp(sec) { sec = sec | 0; const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return (d ? d + 'd ' : '') + (hh || d ? hh + 'h ' : '') + m + 'm'; }
@@ -516,6 +517,73 @@ function wxStatusText(st) {
   return 'Weather is off.';
 }
 
+// ------------------------------------------------------------------ WiFi networks card (Settings tab)
+const WF = { nets: [], max: 5, scan: {} };
+const utf8Len = t => new TextEncoder().encode(t).length;
+async function loadWifi() {
+  const j = await api('/api/wifi');
+  WF.nets = j.nets || []; WF.max = j.max || 5;
+  renderWifi();
+}
+function renderWifi() {
+  const cur = (S.status && S.status.ssid) || '';
+  const key = cur + '|' + JSON.stringify(WF.nets);
+  if (key === WF.key) return;                     // the status poll runs every 5 s: do not rebuild (and eat clicks) for nothing
+  WF.key = key;
+  const ul = $('#wifiList');
+  if (!WF.nets.length) { ul.replaceChildren(h('li', { class: 'muted', text: 'No network saved yet.' })); return; }
+  ul.replaceChildren(...WF.nets.map((n, i) => h('li', { class: 'net' },
+    h('span', { class: 'netname', text: `${i + 1}. ${n.ssid}` }),
+    n.ssid === cur ? pill('connected', 'ok') : null,
+    n.hasPass ? null : pill('open', ''),
+    h('button', { class: 'ghost', type: 'button', title: 'Try this network earlier', 'aria-label': 'Move up', text: '▲', disabled: i === 0, onclick: ev => wifiMove(ev.target, n, -1) }),
+    h('button', { class: 'ghost', type: 'button', title: 'Try this network later', 'aria-label': 'Move down', text: '▼', disabled: i === WF.nets.length - 1, onclick: ev => wifiMove(ev.target, n, +1) }),
+    n.ssid === cur ? null : h('button', { class: 'ghost', type: 'button', text: 'Connect now', onclick: ev => wifiConnect(ev.target, n) }),
+    h('button', { class: 'ghost', type: 'button', text: 'Remove', onclick: ev => wifiRemove(ev.target, n) }))));
+}
+const wifiMove = (btn, n, dir) => guarded(btn, async () => { await api('/api/wifi/move', { ssid: n.ssid, dir }); await loadWifi(); });
+const wifiRemove = (btn, n) => guarded(btn, async () => {
+  const cur = S.status && S.status.ssid;
+  const only = WF.nets.length === 1;
+  const msg = `Remove "${n.ssid}"?` + (n.ssid === cur ? ' The buddy is using it right now and stays connected until it restarts or loses the signal.' : '')
+    + (only ? ' It is the only saved network: without one, the buddy starts its setup network after the next restart.' : '');
+  if (!confirm(msg)) return;
+  await api('/api/wifi/remove', { ssid: n.ssid });
+  await loadWifi();
+  toast('Removed', 'good');
+});
+const wifiConnect = (btn, n) => guarded(btn, async () => {
+  if (!confirm(`Switch the buddy to "${n.ssid}" now?\n\nThis page will lose its connection and the buddy may get a new address. Open http://${S.cfg.host || 'buddy'}.local, or read the address on the buddy's screen (long-press the knob). If it cannot join, it goes back to your other saved networks.`)) return;
+  await api('/api/wifi/connect', { ssid: n.ssid });
+  toast(`Switching to ${n.ssid}…`);
+  setTimeout(() => { pollStatus(); loadWifi().catch(() => {}); }, 15000);
+});
+const signalWord = r => r > -60 ? 'strong' : r > -75 ? 'ok' : 'weak';
+$('#wfScan').addEventListener('click', ev => guarded(ev.target, async () => {
+  toast('Scanning… the buddy is busy for a few seconds');
+  const list = await api('/api/scan?detail=1');
+  WF.scan = {};
+  for (const ap of list) WF.scan[ap.ssid] = ap;
+  $('#wfScanList').replaceChildren(...(list.length
+    ? list.map(ap => h('li', {}, h('button', { class: 'ghost', type: 'button', text: `${ap.ssid}  –  ${signalWord(ap.rssi)}, ${ap.open ? 'open' : 'password'}`,
+        onclick: () => { $('#wfName').value = ap.ssid; $('#wfPass').value = ''; $('#wfScanList').replaceChildren(); $('#wfPass').focus(); } })))
+    : [h('li', { class: 'muted', text: 'No networks found. The buddy only sees 2.4 GHz networks.' })]));
+}));
+$('#wfAdd').addEventListener('click', ev => guarded(ev.target, async () => {
+  const ssid = $('#wfName').value, pass = $('#wfPass').value;
+  if (!ssid || utf8Len(ssid) > 32) throw new Error('The network name must be 1 to 32 characters');
+  if (pass && (utf8Len(pass) < 8 || utf8Len(pass) > 63)) throw new Error('A WiFi password is 8 to 63 characters (or empty for an open network)');
+  const known = WF.nets.find(n => n.ssid === ssid);
+  if (!known && WF.nets.length >= WF.max) throw new Error(`The buddy remembers up to ${WF.max} networks: remove one first`);
+  if (!known && !pass && WF.scan[ssid] && !WF.scan[ssid].open) throw new Error('That network needs a password');
+  const body = { ssid };
+  if (pass || !known) body.pass = pass;           // an existing network keeps its password when this box is empty
+  await api('/api/wifi/add', body);
+  $('#wfName').value = ''; $('#wfPass').value = ''; $('#wfScanList').replaceChildren();
+  await loadWifi();
+  toast(known ? 'Network updated' : 'Network saved - it is at the bottom of the list', 'good');
+}));
+
 function fillSettings() {
   const c = S.cfg;
   $('#sBright').value = c.bright; $('#oBright').textContent = c.bright;
@@ -643,6 +711,7 @@ $$('#tabs button').forEach(b => b.addEventListener('click', () => showTab(b.data
     [S.status, S.cfg] = await Promise.all([api('/api/status'), api('/api/settings')]);
     fillSettings();
     renderStatus();
+    loadWifi().catch(e => toast('WiFi list: ' + e.message, 'bad'));
     await loadLayout();
   } catch (e) {
     toast('Cannot reach the buddy: ' + e.message, 'bad');

@@ -73,7 +73,7 @@ The device resolves the Mac with an IPv4 literal or `MDNS.queryHost` (cached for
 
 | Where | What |
 |---|---|
-| NVS namespace `buddy` | WiFi credentials, admin password, name, time zone, calendar URL, Mac address and port, API token, brightness and sleep settings, layout JSON (`layout`), timer state (`t_st`, `t_dur`, `t_rem`, `t_at`) |
+| NVS namespace `buddy` | saved WiFi networks (`ws0`-`ws4` names, `wp0`-`wp4` passwords; older firmware kept one under `ssid`/`pass`), admin password, name, time zone, calendar URL, Mac address and port, API token, brightness and sleep settings, layout JSON (`layout`), timer state (`t_st`, `t_dur`, `t_rem`, `t_at`) |
 | `spiffs` partition (LittleFS, ~8 MB) | the web editor in `/www` |
 | `app0` / `app1` (4 MB each) | firmware, OTA alternates |
 | `coredump` | crash dumps |
@@ -87,7 +87,7 @@ Assumptions: a home LAN, and attackers who can reach the LAN or trick the owner'
 | Asset | Protection |
 |---|---|
 | Changing shortcuts, settings, firmware | HTTP Basic admin password; writes also need an `X-Buddy` header, which another website cannot add without a CORS preflight that the device never answers (stops CSRF through cached credentials); 6 wrong attempts lock logins for 30 s; the password is only ever sent over the LAN in clear text (plain HTTP) |
-| Setup hotspot | WPA2, random 8-digit password shown only on the device screen, reachable only until WiFi is configured |
+| Setup hotspot | WPA2, random 8-digit password shown only on the device screen, up until WiFi is configured, and again after 2 minutes with no usable saved network |
 | Calendar data | secret token in the script URL; the buddy never sends it anywhere else (URL prefix is enforced) |
 | What the Mac runs | only ids from `actions.json`; no shell; the buddy cannot add actions; token required; requests from non-private addresses refused; body limit, rate limit and lockout |
 | The API token | shown only to the admin; regenerating it invalidates the Mac helper until its config is updated; the buddy refuses to send it to a non-private address |

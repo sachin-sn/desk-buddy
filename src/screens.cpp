@@ -473,8 +473,12 @@ void settingsRefresh(const Snapshot& s, uint8_t bright, bool sleeping) {
     else if (!s.agenda.valid) snprintf(cal, sizeof cal, "pending");
     else snprintf(cal, sizeof cal, "%dm ago", (int)((s.now - s.agenda.fetched) / 60));
     snprintf(mac, sizeof mac, "%s", n.helperOk ? "online" : "offline");
+    char net[48], ssid[22];
+    agendaSanitize(n.ssid, ssid, sizeof ssid);                  // the display font is ASCII only
+    if (strlen(ssid) > 16) { ssid[14] = '.'; ssid[15] = '.'; ssid[16] = 0; }     // a round screen has no room for more
+    if (n.connected) snprintf(net, sizeof net, "%s\n%s", ssid, n.ip); else snprintf(net, sizeof net, "no WiFi");
     snprintf(b, sizeof b, "%s\nBT %s  Mac %s\nCal %s\nBright %d%s",
-             n.connected ? n.ip : "no WiFi",
+             net,
              !n.bleOn ? "off" : n.bleConnected ? "ok" : "pair", mac, cal, bright, sleeping ? " (night)" : "");
   }
   setText(lblSet, sText, sizeof sText, b);

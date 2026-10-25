@@ -158,6 +158,19 @@
         <button id="wxSave">Save weather</button>
       </div>
     </div>
+    <div class="card" id="wifiCard">
+      <h2>WiFi networks</h2>
+      <p class="muted">The buddy remembers up to 5 networks (home, office, phone hotspot&hellip;). It joins the first one in this list that is in range, and if it loses WiFi it moves on to the next. Only 2.4 GHz networks work. Passwords are kept on the buddy and are never shown again.</p>
+      <ul id="wifiList" class="netlist"></ul>
+      <h3>Add a network</h3>
+      <div class="row">
+        <label class="grow">Network name<input id="wfName" maxlength="32" autocomplete="off" spellcheck="false" placeholder="pick one from the scan, or type it"></label>
+        <button id="wfScan" class="ghost" type="button">Scan</button>
+      </div>
+      <ul id="wfScanList" class="picklist"></ul>
+      <label>Password<input id="wfPass" type="password" autocomplete="new-password" placeholder="empty for an open network"></label>
+      <div class="row end"><button id="wfAdd" type="button">Save network</button></div>
+    </div>
     <div class="card">
       <h2>Time &amp; network</h2>
       <div class="grid">

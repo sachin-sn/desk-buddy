@@ -429,27 +429,108 @@ static void otaDone() {
   netRequestReboot();
 }
 
-// ------------------------------------------------------------------ WiFi setup portal
+// ------------------------------------------------------------------ WiFi networks
+// GET /api/scan: the setup page gets a plain list of names; the web editor asks for ?detail=1 and gets
+// signal strength and whether a password is needed. The scan blocks the buddy for 2-4 seconds.
 static void handleScan() {
   if (!netApActive() && !requireAuth()) return;
-  int n = WiFi.scanNetworks();
+  WifiHit hits[40];
+  int n = netScan(hits, 40);
+  if (n < 0) return sendErr(503, "the WiFi scan failed, try again");
+  if (n > 20) n = 20;
   JsonDocument d;
   JsonArray a = d.to<JsonArray>();
+  bool detail = server.hasArg("detail");
   for (int i = 0; i < n; i++) {
-    String s = WiFi.SSID(i);
-    if (s.length()) a.add(s);
+    if (!detail) { a.add(hits[i].ssid); continue; }
+    JsonObject o = a.add<JsonObject>();
+    o["ssid"] = hits[i].ssid;
+    o["rssi"] = hits[i].rssi;
+    o["open"] = hits[i].open;
   }
-  WiFi.scanDelete();
   String out;
   serializeJson(d, out);
+  server.sendHeader("Cache-Control", "no-store");
   server.send(200, "application/json", out);
 }
 
+// GET /api/wifi: the saved networks in priority order. Passwords are never sent back.
+static void handleWifiList() {
+  if (!requireAuth()) return;
+  JsonDocument d;
+  d["max"] = WIFI_MAX;
+  d["current"] = WiFi.status() == WL_CONNECTED ? WiFi.SSID() : String("");
+  JsonArray a = d["nets"].to<JsonArray>();
+  for (int i = 0; i < gCfg.wifi.n; i++) {
+    JsonObject o = a.add<JsonObject>();
+    o["ssid"] = gCfg.wifi.net[i].ssid;
+    o["hasPass"] = gCfg.wifi.net[i].pass[0] != 0;
+  }
+  sendJson(d);
+}
+
+// POST /api/wifi/add {"ssid": "...", "pass": "...", "front": false}
+// An existing name is updated; leaving "pass" out keeps its saved password.
+static void handleWifiAdd() {
+  if (!requireAuth()) return;
+  JsonDocument d;
+  if (deserializeJson(d, server.arg("plain"))) return sendErr(400, "invalid JSON");
+  String ssid = d["ssid"] | "";
+  bool hasPass = d["pass"].is<const char*>();
+  String pass = hasPass ? d["pass"].as<String>() : String();
+  WifiResult r = wifiSet(gCfg.wifi, ssid.c_str(), hasPass ? pass.c_str() : nullptr, d["front"] | false);
+  if (r != WIFI_OK) return sendErr(400, wifiResultText(r));
+  settingsSave();
+  netWifiListChanged();
+  logEvent("wifi: saved network '%s' (%d of %d)", ssid.c_str(), (int)gCfg.wifi.n, WIFI_MAX);
+  sendOk();
+}
+
+// POST /api/wifi/remove {"ssid": "..."}
+static void handleWifiRemove() {
+  if (!requireAuth()) return;
+  JsonDocument d;
+  if (deserializeJson(d, server.arg("plain"))) return sendErr(400, "invalid JSON");
+  String ssid = d["ssid"] | "";
+  WifiResult r = wifiRemove(gCfg.wifi, ssid.c_str());
+  if (r != WIFI_OK) return sendErr(404, wifiResultText(r));
+  settingsSave();
+  netWifiListChanged();
+  logEvent("wifi: removed network '%s' (%d left)", ssid.c_str(), (int)gCfg.wifi.n);
+  sendOk();
+}
+
+// POST /api/wifi/move {"ssid": "...", "dir": -1}   -1 = try it earlier, +1 = later
+static void handleWifiMove() {
+  if (!requireAuth()) return;
+  JsonDocument d;
+  if (deserializeJson(d, server.arg("plain"))) return sendErr(400, "invalid JSON");
+  String ssid = d["ssid"] | "";
+  WifiResult r = wifiMove(gCfg.wifi, ssid.c_str(), d["dir"] | 0);
+  if (r != WIFI_OK) return sendErr(404, wifiResultText(r));
+  settingsSave();
+  netWifiListChanged();
+  sendOk();
+}
+
+// POST /api/wifi/connect {"ssid": "..."}: leave the current network and join this saved one now. If it cannot be
+// joined the buddy carries on through the saved networks by itself, so it is never left without WiFi.
+static void handleWifiConnect() {
+  if (!requireAuth()) return;
+  JsonDocument d;
+  if (deserializeJson(d, server.arg("plain"))) return sendErr(400, "invalid JSON");
+  String ssid = d["ssid"] | "";
+  if (wifiFind(gCfg.wifi, ssid.c_str()) < 0) return sendErr(404, wifiResultText(WIFI_NOT_FOUND));
+  if (WiFi.status() == WL_CONNECTED && WiFi.SSID() == ssid) return sendErr(400, "the buddy is already on that network");
+  sendOk();                                     // the reply goes out first: switching drops this very connection
+  netRequestWifiSwitch(ssid.c_str());
+}
+
+// POST /api/wifi (setup page, also usable from the editor): save this network as the first choice and restart.
 static void handleWifiSave() {
   String ssid = server.arg("ssid"), pass = server.arg("pass"), admin = server.arg("admin");
   String host = server.arg("host"), tz = server.arg("tz");
   if (ssid.isEmpty() || ssid.length() > 32) return sendErr(400, "choose a network");
-  if (pass.length() > 63) return sendErr(400, "WiFi password too long");
   if (gCfg.adminPass.isEmpty()) {
     if (admin.length() < 6) return sendErr(400, "admin password must be at least 6 characters");
   } else if (!sameToken(admin, gCfg.adminPass)) {
@@ -457,13 +538,21 @@ static void handleWifiSave() {
   }
   if (!host.isEmpty() && !hostNameOk(host)) return sendErr(400, "name: letters, digits and - only");
   if (!tz.isEmpty() && !tzOk(tz)) return sendErr(400, "bad timezone string");
+  WifiList trial = gCfg.wifi;                    // validate (and make room) before changing anything
+  WifiResult r = wifiSet(trial, ssid.c_str(), pass.c_str(), true);
+  if (r == WIFI_FULL) {                          // setup always wins: drop the lowest-priority network
+    trial.n = WIFI_MAX - 1;
+    memset(&trial.net[WIFI_MAX - 1], 0, sizeof trial.net[WIFI_MAX - 1]);
+    r = wifiSet(trial, ssid.c_str(), pass.c_str(), true);
+  }
+  if (r != WIFI_OK) return sendErr(400, wifiResultText(r));
 
   if (gCfg.adminPass.isEmpty()) gCfg.adminPass = admin;
   if (!host.isEmpty()) gCfg.host = host;
   if (!tz.isEmpty()) gCfg.tz = tz;
-  gCfg.ssid = ssid;
-  gCfg.pass = pass;
+  gCfg.wifi = trial;
   settingsSave();
+  logEvent("wifi: network '%s' saved as the first choice from the setup page", ssid.c_str());
   sendOk();
   netRequestReboot();
 }
@@ -483,6 +572,11 @@ void webInit() {
   server.on("/setup", HTTP_GET, []() { server.send_P(200, "text/html", SETUP_HTML); });
   server.on("/api/scan", HTTP_GET, handleScan);
   server.on("/api/wifi", HTTP_POST, handleWifiSave);
+  server.on("/api/wifi", HTTP_GET, handleWifiList);
+  server.on("/api/wifi/add", HTTP_POST, handleWifiAdd);
+  server.on("/api/wifi/remove", HTTP_POST, handleWifiRemove);
+  server.on("/api/wifi/move", HTTP_POST, handleWifiMove);
+  server.on("/api/wifi/connect", HTTP_POST, handleWifiConnect);
 
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/settings", HTTP_GET, handleSettingsGet);

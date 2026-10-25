@@ -4,7 +4,7 @@ CXX      ?= g++
 CXXFLAGS ?= -std=gnu++11 -Wall -Wextra -Wno-unused-function -O1 -I../../src
 OUT      := out
 
-TESTS := test_countdown test_agenda test_keycombo test_eyes test_default_layout test_logring test_weather test_weathericon
+TESTS := test_countdown test_agenda test_keycombo test_eyes test_default_layout test_logring test_weather test_weathericon test_wifilist
 
 .PHONY: all test render clean
 all: test

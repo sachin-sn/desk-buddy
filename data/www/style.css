@@ -94,6 +94,10 @@ button.icon { padding: 0; width: 34px; min-height: 34px; }
 
 .picklist { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
 .picklist button { width: 100%; text-align: left; }
+.netlist { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.net { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.net .netname { flex: 1 1 150px; word-break: break-all; }
+.net button { padding: 4px 10px; font-size: 13px; }
 .agenda { list-style: none; padding: 0; margin: 10px 0 0; }
 .agenda li { display: flex; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); }
 .agenda time { color: var(--muted); min-width: 150px; font-variant-numeric: tabular-nums; }
