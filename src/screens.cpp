@@ -342,7 +342,7 @@ void settingsRefresh(const Snapshot& s, uint8_t bright, bool sleeping) {
     snprintf(mac, sizeof mac, "%s", n.helperOk ? "online" : "offline");
     snprintf(b, sizeof b, "%s\nBT %s  Mac %s\nCal %s\nBright %d%s",
              n.connected ? n.ip : "no WiFi",
-             n.bleConnected ? "ok" : "off", mac, cal, bright, sleeping ? " (night)" : "");
+             !n.bleOn ? "off" : n.bleConnected ? "ok" : "pair", mac, cal, bright, sleeping ? " (night)" : "");
   }
   setText(lblSet, sText, sizeof sText, b);
   lv_obj_center(lblSet);

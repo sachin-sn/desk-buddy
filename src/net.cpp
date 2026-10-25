@@ -98,6 +98,7 @@ static void updateStatus() {
                      : (apActive ? WiFi.softAPIP().toString().c_str() : ""), sizeof(s.ip));
   strlcpy(s.apPin, apPin, sizeof(s.apPin));
   s.timeSynced = time(nullptr) > 1735689600;
+  s.bleOn = gCfg.bleHid;
   s.bleConnected = hidConnected();
   s.helperSet = helperConfigured();
   s.helperOk = helperLastOk();

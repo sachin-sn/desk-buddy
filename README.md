@@ -45,6 +45,8 @@ The screen shows the setup instructions by itself:
 
 System Settings -> Bluetooth -> **CrowPanel Buddy** -> Connect. macOS may open *Keyboard Setup Assistant*; close it, or if letters come out wrong choose the ANSI layout. Then open the shortcut screen on the buddy (swipe left from the clock) and press a button - for example **Spot** opens Spotlight.
 
+On the buddy's status screen the Bluetooth line reads `BT pair` until a Mac connects, `BT ok` once connected, and `BT off` only if you switched the keyboard off in Settings.
+
 ### 4. Mac helper (launch apps, notifications, CPU for the buddy's mood)
 
 Only needed for **Mac action** buttons (the default *Dev* page has Code, Term and Web) and notifications.

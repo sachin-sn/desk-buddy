@@ -76,6 +76,7 @@ struct NetStatus {
   bool   setupNeeded;    // no WiFi credentials saved yet (first boot)
   bool   connected;
   bool   timeSynced;
+  bool   bleOn;          // Bluetooth keyboard enabled in settings (advertising until a Mac connects)
   bool   bleConnected;
   bool   helperSet;      // a Mac helper address is configured
   bool   helperOk;       // last call to the Mac helper worked
