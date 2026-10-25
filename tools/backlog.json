@@ -1,0 +1,245 @@
+{
+  "milestones": {
+    "M0 Bring-up on hardware": "Everything in this repo compiles and its pure logic is unit-tested, but none of it has run on a real board yet. These issues are the first-boot checklist.",
+    "M1 macOS daily driver": "Make it genuinely useful on your Mac every day.",
+    "M2 Polish and robustness": "Known rough edges and risks found while writing the code.",
+    "M3 Ideas": "Nice-to-haves. Not planned."
+  },
+  "labels": {
+    "hardware": "1d76db",
+    "firmware": "5319e7",
+    "web-ui": "0e8a16",
+    "mac-helper": "fbca04",
+    "macos": "bfd4f2",
+    "calendar": "c5def5",
+    "ci": "ededed",
+    "docs": "0075ca",
+    "risk": "d93f0b",
+    "idea": "cfd3d7"
+  },
+  "items": [
+    {
+      "id": "M0-01", "milestone": "M0 Bring-up on hardware", "labels": ["hardware", "firmware"],
+      "title": "Build and flash the first image",
+      "files": ["platformio.ini", "partitions.csv", "src/lgfx_config.h", "src/pins.h", "src/main.cpp"],
+      "body": "Run `pio run`, then `pio run -t upload` over USB-C and `pio run -t uploadfs` for the web pages. The sources were compiled with the ESP32-S3 GCC and Arduino-ESP32 2.0.17 in a sandbox (no warnings), but never linked into an image or run, and PlatformIO itself could not be used there. Expect to fix small build or pin problems here.",
+      "acceptance": [
+        "`pio run` succeeds on a fresh clone (note any library version problems in platformio.ini)",
+        "Upload works on macOS (`/dev/cu.usbmodem*`) and the eyes appear on the display",
+        "If the screen stays blank or is shifted: fix panel offsets or pins in src/lgfx_config.h / src/pins.h"
+      ]
+    },
+    {
+      "id": "M0-02", "milestone": "M0 Bring-up on hardware", "labels": ["hardware", "firmware"],
+      "title": "Check touch and knob behaviour",
+      "files": ["src/input.cpp", "src/input.h", "src/pins.h"],
+      "body": "Verify the CST816D touch controller (I2C 0x15) and the rotary encoder. Pin numbers come from the Elecrow wiki and are unverified on your unit.",
+      "acceptance": [
+        "Tap, swipe left/right/up/down and long touch each trigger the expected screen behaviour",
+        "Knob clockwise looks right / increases values; if reversed set ENC_REVERSE to 1 in src/input.h",
+        "One knob detent equals one step (adjust ENC_COUNTS_PER_DETENT if not)"
+      ]
+    },
+    {
+      "id": "M0-03", "milestone": "M0 Bring-up on hardware", "labels": ["firmware", "web-ui"],
+      "title": "First-boot WiFi setup and buddy.local",
+      "files": ["src/net.cpp", "src/web.cpp", "src/setup_page.h", "src/screens.cpp"],
+      "body": "On first boot the device opens a WPA2 access point named CrowPanel-Buddy with a random password shown on its screen, serving a setup page. Check the whole path including mDNS from the Mac.",
+      "acceptance": [
+        "Phone joins CrowPanel-Buddy with the on-screen password and the setup page opens (captive portal or http://192.168.4.1)",
+        "After saving, the buddy restarts, joins the home 2.4 GHz WiFi and `http://buddy.local` opens from the Mac",
+        "Wrong WiFi password: the setup AP comes back instead of leaving a dead device"
+      ]
+    },
+    {
+      "id": "M0-04", "milestone": "M0 Bring-up on hardware", "labels": ["hardware"],
+      "title": "Backlight, night dimming and LED ring",
+      "files": ["src/ui.cpp", "src/pins.h", "src/settings.cpp"],
+      "body": "Backlight is PWM on GPIO46, the five WS2812 LEDs are on GPIO48. Check that the sleep window (default 23:00 to 07:00) dims the screen and turns the LEDs off, and that the knob changes brightness on the clock screen.",
+      "acceptance": [
+        "Brightness changes smoothly and is remembered after a reboot",
+        "At night the buddy sleeps (thin eyes), screen dims, LEDs off",
+        "LED ring flashes on a meeting alert and shows timer progress while a timer runs"
+      ]
+    },
+    {
+      "id": "M0-05", "milestone": "M0 Bring-up on hardware", "labels": ["firmware", "risk"],
+      "title": "Frame rate and memory with WiFi and Bluetooth running",
+      "files": ["src/buddy.cpp", "src/ui.cpp", "platformio.ini"],
+      "body": "The buddy is drawn into a 240x240 sprite in PSRAM and pushed at about 30 fps while the other core runs WiFi, the web server and BLE. Measure it; the heap/PSRAM numbers are on the web page's Firmware tab.",
+      "acceptance": [
+        "Eyes animate smoothly (no visible stutter) while the web page is open and a shortcut is being sent",
+        "Free heap stays stable over 24 hours (no slow leak)",
+        "If PSRAM sprite pushes are too slow: try a smaller sprite, partial redraw, or a pushImage DMA path"
+      ]
+    },
+    {
+      "id": "M0-06", "milestone": "M0 Bring-up on hardware", "labels": ["macos", "firmware"],
+      "title": "Pair with macOS and verify every default shortcut",
+      "files": ["src/hid.cpp", "src/hid.h", "src/keycombo.h", "src/layout.cpp"],
+      "body": "The buddy shows up as the Bluetooth keyboard 'CrowPanel Buddy'. macOS may open Keyboard Setup Assistant the first time. Go through every default button on all four pages and the media keys.",
+      "acceptance": [
+        "Pairing works and survives sleep/wake of the Mac and a buddy reboot",
+        "Spot, Shot, Rec, Lock, Apps, Desks and the Calls / Dev / Media pages all do what their label says",
+        "`spot:` macros open the app reliably; if Spotlight is slow, increase the waits (see M1-05)"
+      ]
+    },
+    {
+      "id": "M0-07", "milestone": "M0 Bring-up on hardware", "labels": ["mac-helper", "macos"],
+      "title": "Mac helper: install and test end to end",
+      "files": ["helper/buddy-helper.js", "helper/install-launchagent.sh", "helper/com.deskbuddy.helper.plist.template", "src/helper_client.cpp"],
+      "body": "The helper's logic is covered by 18 automated tests on Linux, but launchctl, osascript, vm_stat, `open`, `shortcuts` and the macOS firewall / Local Network prompts have never been run.",
+      "acceptance": [
+        "`node buddy-helper.js --init` and `./install-launchagent.sh` work; the helper starts at login and restarts if killed",
+        "Dev page buttons open VS Code, Terminal and Chrome; Settings -> Mac helper shows green",
+        "A timer finishing shows a macOS notification; heavy CPU load (>= 85%) makes the buddy grumpy",
+        "Check the three prompts: incoming connections, Local Network access, notification permission for the helper"
+      ]
+    },
+    {
+      "id": "M0-08", "milestone": "M0 Bring-up on hardware", "labels": ["calendar", "firmware"],
+      "title": "Google Calendar end to end over HTTPS",
+      "files": ["google/calendar_proxy.gs", "src/calendar.cpp", "src/net.cpp"],
+      "body": "The Apps Script is tested against a fake CalendarApp only. On the device the request follows Google's 302 redirect and verifies TLS with the Arduino core's built-in certificate bundle. If TLS verification fails, `-DBUDDY_TLS_INSECURE` is a temporary fallback (do not keep it).",
+      "acceptance": [
+        "Deploy the script (README steps) and paste the URL; the Agenda screen lists today's meetings",
+        "A meeting 10 minutes away shows the alert, the buddy looks surprised and the clock shows the next-meeting line",
+        "Private events show as Busy; declined and all-day events are hidden",
+        "Calendar errors show in the web page without losing the previous events"
+      ]
+    },
+    {
+      "id": "M0-09", "milestone": "M0 Bring-up on hardware", "labels": ["firmware"],
+      "title": "Timer survives a power cut",
+      "files": ["src/ui.cpp", "src/settings.cpp", "src/countdown.h"],
+      "body": "The timer state is saved to NVS and restored once NTP time is valid (otherwise after 90 s as paused).",
+      "acceptance": [
+        "Start 10 min, unplug for 1 min, replug: it resumes with about 9 min left",
+        "A timer that would have finished while unplugged shows 'FINISHED while away'",
+        "NVS is not written every second (check writes only on start / pause / reset)"
+      ]
+    },
+    {
+      "id": "M0-10", "milestone": "M0 Bring-up on hardware", "labels": ["firmware", "web-ui"],
+      "title": "OTA firmware update from the web page",
+      "files": ["src/web.cpp", "data/www/app.js", "partitions.csv"],
+      "body": "Upload a rebuilt `.pio/build/crowpanel/firmware.bin` on the Firmware tab.",
+      "acceptance": [
+        "Upload shows progress, the buddy reboots into the new FW_VERSION",
+        "A non-firmware file is rejected in the browser, a truncated upload leaves the old firmware running",
+        "Upload without logging in is refused"
+      ]
+    },
+    {
+      "id": "M0-11", "milestone": "M0 Bring-up on hardware", "labels": ["ci"],
+      "title": "First CI run on GitHub",
+      "files": [".github/workflows/ci.yml", "platformio.ini", "test/host/Makefile"],
+      "body": "The workflow runs the host tests, the helper tests, the Apps Script tests and a full `pio run`. Only the first three have been exercised locally; the PlatformIO job is the first real PlatformIO build of this project.",
+      "acceptance": [
+        "All four jobs are green on the first push, or the failures are fixed",
+        "Add a status badge to README.md"
+      ]
+    },
+
+    {
+      "id": "M1-01", "milestone": "M1 macOS daily driver", "labels": ["macos", "firmware", "web-ui"],
+      "title": "Tune the default shortcut pages to your own apps",
+      "files": ["src/layout.cpp", "helper/actions.example.json", "data/www/app.js"],
+      "body": "The defaults are generic macOS shortcuts. Replace them with what you press all day (use the web editor, then copy the JSON back into DEFAULT_LAYOUT so a factory reset keeps your set).",
+      "acceptance": [
+        "Pages reflect real daily use",
+        "Every shortcut in the default layout is still valid (host test `make -C test/host test` passes)"
+      ]
+    },
+    {
+      "id": "M1-02", "milestone": "M1 macOS daily driver", "labels": ["mac-helper", "firmware"],
+      "title": "Mirror meeting alerts to macOS notifications",
+      "files": ["src/ui.cpp", "src/net.cpp", "helper/buddy-helper.js"],
+      "body": "NC_NOTIFY already exists and is used when a timer finishes. Meeting reminders only show on the buddy; send them to the Mac as well (once per event, using AlertTracker).",
+      "acceptance": ["A 'meeting in 10 min' notification appears on the Mac", "No duplicate notifications after a reboot or calendar refresh"]
+    },
+    {
+      "id": "M1-03", "milestone": "M1 macOS daily driver", "labels": ["calendar", "mac-helper", "firmware"],
+      "title": "One-tap 'join meeting'",
+      "files": ["google/calendar_proxy.gs", "src/agenda.h", "src/calendar.cpp", "src/ui.cpp", "src/screens.cpp", "src/helper_client.cpp", "helper/buddy-helper.js"],
+      "body": "Return the Meet/Zoom link for each event from the script and let a tap on the Agenda row open it on the Mac through the helper (new endpoint with an allow-list of hosts such as meet.google.com and zoom.us). Keep the device sending only an index, never a URL.",
+      "acceptance": ["Tap the next meeting to open its link on the Mac", "Only allow-listed hosts open", "Tests cover the allow-list in helper/test"]
+    },
+    {
+      "id": "M1-04", "milestone": "M1 macOS daily driver", "labels": ["mac-helper", "firmware", "web-ui"],
+      "title": "Frontmost-app aware shortcut page",
+      "files": ["helper/buddy-helper.js", "src/web.cpp", "src/state.h", "src/ui.cpp", "src/layout.cpp", "data/www/app.js"],
+      "body": "The helper reports the frontmost application (needs macOS Automation permission) and the buddy switches to a matching page, for example Zoom -> Calls, Code -> Dev. Make the mapping part of the layout JSON.",
+      "acceptance": ["Switching apps changes the shortcut page within a second or two", "Manual page changes are not overridden for 30 seconds"]
+    },
+    {
+      "id": "M1-05", "milestone": "M1 macOS daily driver", "labels": ["macos", "firmware"],
+      "title": "Spotlight timing and other launchers (Raycast, Alfred)",
+      "files": ["src/keycombo.h", "test/host/test_keycombo.cpp", "data/www/index.html"],
+      "body": "`spot:Notes` types Cmd+Space, waits 350 ms, types the name, waits 300 ms and presses Return. Make the waits and the launcher key configurable and document how to use Raycast/Alfred instead.",
+      "acceptance": ["`spot:` works on your Mac without retries", "Launcher shortcut is configurable in Settings"]
+    },
+    {
+      "id": "M1-06", "milestone": "M1 macOS daily driver", "labels": ["mac-helper", "firmware"],
+      "title": "Reach the helper when the Mac's address changes",
+      "files": ["src/helper_client.cpp", "src/settings.cpp"],
+      "body": "The device caches the resolved address for 10 minutes and re-resolves after a failed call. Check that sleep/wake and WiFi roaming recover on their own, and that a router restart does not need a buddy reboot.",
+      "acceptance": ["After the Mac sleeps and wakes the first button press may fail but the next works", "No lasting 'Mac helper unreachable' state"]
+    },
+
+    {
+      "id": "M2-01", "milestone": "M2 Polish and robustness", "labels": ["firmware", "risk"],
+      "title": "Calendar fetch blocks the network task",
+      "files": ["src/calendar.cpp", "src/net.cpp"],
+      "body": "The fetch runs in the same loop that serves the web page and sends Bluetooth shortcuts and can take up to ~12 s on a bad connection every 5 minutes. Move it into a short-lived task with its own copy of the URL (gCfg strings are not thread safe).",
+      "acceptance": ["A shortcut pressed during a slow fetch still goes out within 200 ms", "No data race on gCfg.calUrl"]
+    },
+    {
+      "id": "M2-02", "milestone": "M2 Polish and robustness", "labels": ["firmware", "risk"],
+      "title": "Mac name lookup blocks the network task",
+      "files": ["src/helper_client.cpp"],
+      "body": "`MDNS.queryHost` can block for 2 s when the Mac is asleep, delaying Bluetooth shortcuts queued behind it. Resolve in the background and keep the last good address.",
+      "acceptance": ["With the Mac asleep, a Bluetooth shortcut still fires immediately"]
+    },
+    {
+      "id": "M2-03", "milestone": "M2 Polish and robustness", "labels": ["web-ui", "firmware", "risk"],
+      "title": "Harden the web UI beyond LAN-only HTTP basic auth",
+      "files": ["src/web.cpp", "data/www/app.js"],
+      "body": "Writes need the admin password plus an X-Buddy header, there is a login lockout and the helper uses a separate token, but everything is plain HTTP on your LAN. Decide whether that is enough or add a session cookie / HTTPS.",
+      "acceptance": ["Threat model written down in docs/DESIGN.md", "Decision recorded"]
+    },
+    {
+      "id": "M2-04", "milestone": "M2 Polish and robustness", "labels": ["firmware"],
+      "title": "More moods and idle animations",
+      "files": ["src/eyes.h", "test/host/test_eyes.cpp", "test/host/render_eyes.cpp", "src/buddy.cpp"],
+      "body": "Wink, love, dizzy, looking at the clock, a startled reaction to a meeting alert. The renderer is shared between the host tests and the board, so every new mood can be previewed with `make -C test/host render`.",
+      "acceptance": ["New moods appear in the contact sheet", "Tests cover the transitions"]
+    },
+    {
+      "id": "M2-05", "milestone": "M2 Polish and robustness", "labels": ["firmware"],
+      "title": "12-hour clock and date format options",
+      "files": ["src/screens.cpp", "src/settings.h", "src/settings.cpp", "src/web.cpp", "data/www/index.html", "data/www/app.js"],
+      "body": "The clock is 24-hour only.",
+      "acceptance": ["Setting changes the clock and agenda times"]
+    },
+    {
+      "id": "M2-06", "milestone": "M2 Polish and robustness", "labels": ["docs"],
+      "title": "Photos and a wiring/assembly page for the README",
+      "files": ["README.md", "docs/DESIGN.md"],
+      "body": "Add a photo of the finished buddy, a screenshot of the web editor and a short GIF of the eyes.",
+      "acceptance": ["README shows the device and the editor"]
+    },
+
+    {
+      "id": "M3-01", "milestone": "M3 Ideas", "labels": ["idea", "hardware"],
+      "title": "Battery operation",
+      "files": ["src/state.h", "src/ui.cpp", "src/pins.h"],
+      "body": "The board has a LiPo connector, but this project assumes USB power. First find out whether the board offers any battery-voltage or USB-presence sensing; only then add dimming and a battery indicator.",
+      "acceptance": ["Hardware capability confirmed or ruled out in writing"]
+    },
+    { "id": "M3-02", "milestone": "M3 Ideas", "labels": ["idea"], "title": "Weather on the clock screen", "files": ["src/net.cpp", "src/screens.cpp", "src/state.h"], "body": "Small temperature/icon next to the date, fetched from a free weather API.", "acceptance": ["Shows current temperature"] },
+    { "id": "M3-03", "milestone": "M3 Ideas", "labels": ["idea"], "title": "Pomodoro cycles", "files": ["src/countdown.h", "src/ui.cpp", "test/host/test_countdown.cpp"], "body": "Focus -> break -> focus automatically, with a daily count.", "acceptance": ["Cycle runs hands-free; tests cover the state machine"] },
+    { "id": "M3-04", "milestone": "M3 Ideas", "labels": ["idea", "mac-helper"], "title": "Slack / Teams status and mute indicators", "files": ["helper/buddy-helper.js", "src/web.cpp", "src/ui.cpp"], "body": "Show whether the Mac mic is muted or a call is active.", "acceptance": ["Indicator visible on the buddy"] },
+    { "id": "M3-05", "milestone": "M3 Ideas", "labels": ["idea", "mac-helper"], "title": "Windows / Linux helper", "files": ["helper/buddy-helper.js", "helper/package.json"], "body": "Only the launch commands and notification call are macOS specific.", "acceptance": ["Actions and notifications work on a second OS"] }
+  ]
+}

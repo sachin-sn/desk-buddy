@@ -1,0 +1,94 @@
+#include "settings.h"
+#include <Preferences.h>
+#include <esp_system.h>
+
+Settings gCfg;
+static Preferences prefs;
+
+static String randomToken() {
+  char buf[25];
+  for (int i = 0; i < 3; i++) snprintf(buf + i * 8, 9, "%08x", (unsigned)esp_random());
+  return String(buf);
+}
+
+void settingsLoad() {
+  prefs.begin("buddy", true);
+  gCfg.ssid        = prefs.getString("ssid", "");
+  gCfg.pass        = prefs.getString("pass", "");
+  gCfg.adminPass   = prefs.getString("admin", "");
+  gCfg.host        = prefs.getString("host", "buddy");
+  gCfg.tz          = prefs.getString("tz", "IST-5:30");
+  gCfg.calUrl      = prefs.getString("calurl", "");
+  gCfg.helperHost  = prefs.getString("helper", "");
+  gCfg.helperPort  = prefs.getUShort("hport", 8765);
+  gCfg.apiToken    = prefs.getString("token", "");
+  gCfg.bright      = prefs.getUChar("bright", 200);
+  gCfg.nightBright = prefs.getUChar("nbright", 12);
+  gCfg.sleepFrom   = prefs.getUChar("sfrom", 23);
+  gCfg.sleepTo     = prefs.getUChar("sto", 7);
+  gCfg.leadMin     = prefs.getUChar("lead", 10);
+  gCfg.clockSecs   = prefs.getUChar("cto", 15);
+  gCfg.ledOn       = prefs.getBool("led", true);
+  gCfg.bleHid      = prefs.getBool("ble", true);
+  prefs.end();
+
+  if (gCfg.apiToken.isEmpty()) {          // first boot: make the shared secret once
+    gCfg.apiToken = randomToken();
+    settingsSave();
+  }
+}
+
+void settingsSave() {
+  prefs.begin("buddy", false);
+  prefs.putString("ssid", gCfg.ssid);
+  prefs.putString("pass", gCfg.pass);
+  prefs.putString("admin", gCfg.adminPass);
+  prefs.putString("host", gCfg.host);
+  prefs.putString("tz", gCfg.tz);
+  prefs.putString("calurl", gCfg.calUrl);
+  prefs.putString("helper", gCfg.helperHost);
+  prefs.putUShort("hport", gCfg.helperPort);
+  prefs.putString("token", gCfg.apiToken);
+  prefs.putUChar("bright", gCfg.bright);
+  prefs.putUChar("nbright", gCfg.nightBright);
+  prefs.putUChar("sfrom", gCfg.sleepFrom);
+  prefs.putUChar("sto", gCfg.sleepTo);
+  prefs.putUChar("lead", gCfg.leadMin);
+  prefs.putUChar("cto", gCfg.clockSecs);
+  prefs.putBool("led", gCfg.ledOn);
+  prefs.putBool("ble", gCfg.bleHid);
+  prefs.end();
+}
+
+String settingsLoadLayoutJson() {
+  prefs.begin("buddy", true);
+  String s = prefs.getString("layout", "");
+  prefs.end();
+  return s;
+}
+
+void settingsSaveLayoutJson(const String& json) {
+  prefs.begin("buddy", false);
+  prefs.putString("layout", json);
+  prefs.end();
+}
+
+SavedTimer settingsLoadTimer() {
+  SavedTimer t{};
+  prefs.begin("buddy", true);
+  t.state   = prefs.getUChar("t_st", 0);
+  t.dur     = prefs.getUInt("t_dur", 25 * 60);
+  t.rem     = prefs.getUInt("t_rem", 0);
+  t.savedAt = prefs.getUInt("t_at", 0);
+  prefs.end();
+  return t;
+}
+
+void settingsSaveTimer(uint8_t state, uint32_t dur, uint32_t rem, uint32_t nowEpoch) {
+  prefs.begin("buddy", false);
+  prefs.putUChar("t_st", state);
+  prefs.putUInt("t_dur", dur);
+  prefs.putUInt("t_rem", rem);
+  prefs.putUInt("t_at", nowEpoch);
+  prefs.end();
+}

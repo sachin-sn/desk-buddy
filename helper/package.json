@@ -1,0 +1,19 @@
+{
+  "name": "desk-buddy-helper",
+  "version": "0.1.0",
+  "description": "Mac helper for the Desk Buddy: runs allow-listed actions and shows notifications on request, reports CPU/RAM.",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "buddy-helper": "buddy-helper.js"
+  },
+  "scripts": {
+    "start": "node buddy-helper.js",
+    "init": "node buddy-helper.js --init",
+    "check": "node buddy-helper.js --check",
+    "dry-run": "node buddy-helper.js --dry-run",
+    "test": "node --test test/*.test.js"
+  }
+}

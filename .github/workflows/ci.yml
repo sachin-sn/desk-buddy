@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host-tests:
+    name: Host tests (C++ logic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run unit tests
+        run: make -C test/host test
+
+  node-tests:
+    name: Mac helper and Apps Script tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Mac helper
+        working-directory: helper
+        run: npm test
+      - name: Google Apps Script proxy
+        working-directory: google
+        run: node --test test/*.test.js
+      - name: Backlog tooling
+        run: |
+          node --test tools/backlog.test.js
+          node tools/backlog.js --check
+      - name: Web editor script parses
+        run: node --check data/www/app.js
+
+  firmware:
+    name: Firmware build (PlatformIO)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: pio-${{ hashFiles('platformio.ini') }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Build
+        run: pio run
+      - name: Show size
+        run: pio run -t size || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: .pio/build/crowpanel/firmware.bin

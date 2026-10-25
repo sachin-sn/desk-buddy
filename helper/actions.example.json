@@ -1,0 +1,16 @@
+{
+  "//": "Each key is an action id you can use as a 'Mac action' button on the buddy. Types: open, url, shortcut, exec.",
+
+  "vscode":   { "type": "open", "app": "Visual Studio Code" },
+  "terminal": { "type": "open", "app": "Terminal" },
+  "chrome":   { "type": "open", "app": "Google Chrome" },
+
+  "github":   { "type": "url", "url": "https://github.com" },
+  "calendar": { "type": "url", "url": "https://calendar.google.com" },
+
+  "//focus":  "Runs a shortcut from the Shortcuts app by name (macOS 12+). Create one that turns on a Focus mode, for example.",
+  "focus":    { "type": "shortcut", "name": "Focus" },
+
+  "sleepscreen": { "type": "exec", "argv": ["/usr/bin/pmset", "displaysleepnow"] },
+  "say-hi":      { "type": "exec", "argv": ["/usr/bin/say", "Hello from your desk buddy"] }
+}

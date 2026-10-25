@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Desk Buddy</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#15171c" stroke="#00d1ff" stroke-width="1.5"/><rect x="8" y="11" width="6" height="10" rx="3" fill="#00d1ff"/><rect x="18" y="11" width="6" height="10" rx="3" fill="#00d1ff"/></svg>
+    <h1>Desk Buddy</h1><span id="fw" class="muted"></span>
+  </div>
+  <div id="pills" class="pills"></div>
+</header>
+
+<nav id="tabs" role="tablist">
+  <button data-tab="shortcuts" class="on">Shortcuts</button>
+  <button data-tab="timers">Timers</button>
+  <button data-tab="connect">Calendar &amp; Mac</button>
+  <button data-tab="settings">Settings</button>
+  <button data-tab="firmware">Firmware</button>
+</nav>
+
+<main>
+  <!-- ============================================================ SHORTCUTS -->
+  <section id="tab-shortcuts" class="tab on">
+    <div class="split">
+      <div class="col">
+        <div id="pageTabs" class="chips"></div>
+        <div class="card">
+          <div class="row">
+            <label class="grow">Page name<input id="pgName" maxlength="11"></label>
+            <label>Colour<input id="pgColor" type="color"></label>
+          </div>
+          <div id="slots"></div>
+          <div class="row end">
+            <button id="addSlot" class="ghost">+ Add shortcut</button>
+            <button id="delPage" class="ghost danger">Delete page</button>
+          </div>
+        </div>
+        <details class="card help">
+          <summary>Shortcut syntax</summary>
+          <p><b>Keys (over Bluetooth)</b> &mdash; modifiers <code>cmd ctrl alt shift</code> joined with <code>+</code>:
+             <code>cmd+space</code>, <code>cmd+shift+4</code>, <code>ctrl+cmd+q</code>.
+             Keys: letters, digits, <code>enter esc tab space backspace delete up down left right home end pageup pagedown f1&hellip;f24</code>.</p>
+          <p><b>Media keys</b> &mdash; <code>playpause next prev volup voldown mute stop</code>.</p>
+          <p><b>Sequences</b> &mdash; separate steps with <code>;</code> &nbsp;
+             <code>wait:300</code> pauses, <code>text:hello</code> types text.
+             <code>spot:Notes</code> opens an app through Spotlight.</p>
+          <p><b>Mac action</b> &mdash; the id of an entry in the helper's <code>actions.json</code> (open an app, run a Shortcuts automation, run a script).
+             It needs the Mac helper running.</p>
+          <p class="muted">Labels are up to 6 characters. Up to 6 pages with 6 shortcuts each. The whole layout must stay under 3800 characters.</p>
+        </details>
+        <details class="card">
+          <summary>Import / export JSON</summary>
+          <textarea id="json" rows="9" spellcheck="false"></textarea>
+          <div class="row end">
+            <button id="jsonCopy" class="ghost">Copy</button>
+            <button id="jsonApply" class="ghost">Load into editor</button>
+            <button id="layoutReset" class="ghost danger">Reset to defaults</button>
+          </div>
+        </details>
+      </div>
+      <aside class="col preview">
+        <svg id="ring" viewBox="0 0 240 240" role="img" aria-label="Preview of the round screen"></svg>
+        <p class="muted center">Preview of the knob screen. Turn the knob to change page.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============================================================ TIMERS -->
+  <section id="tab-timers" class="tab">
+    <div class="card">
+      <h2>Timer presets</h2>
+      <p class="muted">On the buddy: swipe to the timer screen, turn the knob to pick a preset, press to start.</p>
+      <div id="presets"></div>
+      <div class="row end"><button id="addPreset" class="ghost">+ Add preset</button></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ CALENDAR + MAC -->
+  <section id="tab-connect" class="tab">
+    <div class="card">
+      <h2>Google Calendar</h2>
+      <p class="muted">Paste the web-app URL from your Apps Script deployment (it ends in <code>/exec?t=&hellip;</code>). See <code>google/calendar_proxy.gs</code>.</p>
+      <label>Web-app URL<input id="calUrl" placeholder="https://script.google.com/macros/s/&hellip;/exec?t=&hellip;" autocomplete="off" spellcheck="false"></label>
+      <p id="calState" class="muted"></p>
+      <div class="row end">
+        <button id="calClear" class="ghost danger">Turn off</button>
+        <button id="calAgenda" class="ghost">Show upcoming</button>
+        <button id="calRefresh" class="ghost">Refresh now</button>
+        <button id="calSave">Save</button>
+      </div>
+      <ul id="agenda" class="agenda"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Mac helper</h2>
+      <p class="muted">A tiny script on your Mac that opens apps and runs automations when you press a <em>Mac action</em> button, and sends CPU load to the buddy.</p>
+      <div class="row">
+        <label class="grow">Mac address<input id="helperHost" placeholder="Sachins-MacBook.local or 192.168.1.20" spellcheck="false"></label>
+        <label class="narrow">Port<input id="helperPort" type="number" min="1" max="65535"></label>
+      </div>
+      <div class="row end"><button id="helperSave">Save</button></div>
+
+      <h3>Access token</h3>
+      <p class="muted">Goes into the helper's <code>config.json</code>. Keep it private.</p>
+      <div class="row">
+        <input id="token" class="mono grow" readonly placeholder="hidden" value="">
+        <button id="tokenShow" class="ghost">Show</button>
+        <button id="tokenCopy" class="ghost">Copy</button>
+        <button id="tokenRegen" class="ghost danger">New token</button>
+      </div>
+      <pre id="helperCfg" class="code" hidden></pre>
+
+      <h3>Test an action</h3>
+      <div class="row">
+        <input id="testMac" class="grow" placeholder="action id, e.g. vscode" spellcheck="false">
+        <button id="testMacGo" class="ghost">Run on Mac</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ SETTINGS -->
+  <section id="tab-settings" class="tab">
+    <div class="card">
+      <h2>Display &amp; behaviour</h2>
+      <div class="grid">
+        <label>Brightness<input id="sBright" type="range" min="10" max="255"><output id="oBright"></output></label>
+        <label>Night brightness<input id="sNight" type="range" min="0" max="255"><output id="oNight"></output></label>
+        <label>Sleep from (hour)<input id="sFrom" type="number" min="0" max="23"></label>
+        <label>Wake at (hour)<input id="sTo" type="number" min="0" max="23"></label>
+        <label>Meeting warning (min before, 0 = off)<input id="sLead" type="number" min="0" max="60"></label>
+        <label>Clock stays on screen (seconds)<input id="sClock" type="number" min="3" max="120"></label>
+      </div>
+      <label class="check"><input id="sLed" type="checkbox"> LED ring on</label>
+      <label class="check"><input id="sBle" type="checkbox"> Bluetooth keyboard (needs a restart to change)</label>
+    </div>
+    <div class="card">
+      <h2>Time &amp; network</h2>
+      <div class="grid">
+        <label>Timezone<select id="sTzPick"></select></label>
+        <label>Timezone string<input id="sTz" spellcheck="false"></label>
+        <label>Device name (<span id="hostHint">buddy.local</span>)<input id="sHost" maxlength="24"></label>
+        <label>New admin password<input id="sPass" type="password" autocomplete="new-password" placeholder="leave empty to keep"></label>
+      </div>
+    </div>
+    <div class="row end">
+      <button id="reboot" class="ghost">Restart buddy</button>
+      <button id="settingsSave">Save settings</button>
+    </div>
+  </section>
+
+  <!-- ============================================================ FIRMWARE -->
+  <section id="tab-firmware" class="tab">
+    <div class="card">
+      <h2>Firmware update</h2>
+      <p>Installed: <b id="fwNow">?</b></p>
+      <p class="muted">Build with <code>pio run</code>, then choose <code>.pio/build/crowpanel/firmware.bin</code>. The buddy restarts by itself.
+         The web pages you are looking at update with <code>pio run -t uploadfs</code> over USB.</p>
+      <input id="fwFile" type="file" accept=".bin">
+      <progress id="fwBar" value="0" max="100" hidden></progress>
+      <div class="row end"><button id="fwGo">Upload and install</button></div>
+    </div>
+    <div class="card">
+      <h2>Device</h2>
+      <dl id="dev" class="dl"></dl>
+    </div>
+  </section>
+</main>
+
+<div id="savebar" class="savebar" hidden>
+  <span>Unsaved changes</span>
+  <button id="discard" class="ghost">Discard</button>
+  <button id="save">Save to buddy</button>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<datalist id="keyHints">
+  <option value="cmd+space"><option value="cmd+tab"><option value="cmd+shift+4"><option value="cmd+shift+5">
+  <option value="ctrl+cmd+q"><option value="cmd+c"><option value="cmd+v"><option value="cmd+z">
+  <option value="playpause"><option value="next"><option value="prev"><option value="volup"><option value="voldown"><option value="mute">
+  <option value="spot:Notes"><option value="cmd+space;wait:350;text:Terminal;enter">
+</datalist>
+
+<script src="app.js"></script>
+</body>
+</html>
