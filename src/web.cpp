@@ -166,6 +166,7 @@ static void handleStatus() {
   d["helperSet"] = n.helperSet;
   d["helperOk"] = n.helperOk;
   d["cal"] = calStateName(n.calState);
+  d["calErr"] = n.calErr;
   d["timeSynced"] = n.timeSynced;
   d["now"] = n.timeSynced ? (uint32_t)time(nullptr) : 0;
   d["uptime"] = millis() / 1000;

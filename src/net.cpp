@@ -21,6 +21,7 @@ static char     apPin[12] = "";
 static bool     calWanted = true;            // fetch as soon as WiFi and time are ready
 static uint32_t calNextAt = 0;               // millis() of the next scheduled fetch
 static uint8_t  calState = CAL_NOT_SET;
+static char     calErrText[48] = "";
 static const uint32_t CAL_EVERY_MS = 5UL * 60UL * 1000UL;
 static const uint32_t CAL_RETRY_MS = 60UL * 1000UL;
 
@@ -103,6 +104,7 @@ static void updateStatus() {
   s.helperSet = helperConfigured();
   s.helperOk = helperLastOk();
   s.calState = gCfg.calUrl.isEmpty() ? CAL_NOT_SET : calState;
+  strlcpy(s.calErr, calErrText, sizeof(s.calErr));
   portENTER_CRITICAL(&gMux);
   gNet = s;
   portEXIT_CRITICAL(&gMux);
@@ -123,9 +125,12 @@ static void pollCalendar(uint32_t now) {
     gAgenda = a;
     portEXIT_CRITICAL(&gMux);
     calState = CAL_OK;
+    calErrText[0] = 0;
+    Serial.printf("[cal] ok: %d event(s)\n", (int)a.n);
     calNextAt = now + CAL_EVERY_MS;
   } else {
-    Serial.printf("calendar: %s\n", err.c_str());
+    Serial.printf("[cal] FAILED: %s\n", err.c_str());
+    strlcpy(calErrText, err.c_str(), sizeof(calErrText));
     calState = CAL_ERROR;
     calNextAt = now + CAL_RETRY_MS;
   }

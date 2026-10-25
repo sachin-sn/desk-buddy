@@ -367,7 +367,7 @@ function renderStatus() {
     ['Web files', `${Math.round(st.fsUsed / 1024)} KB of ${Math.round(st.fsTotal / 1048576)} MB used`]];
   $('#dev').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: String(v) })]));
   $('#hostHint').textContent = (S.cfg.host || st.host || 'buddy') + '.local';
-  $('#calState').textContent = { off: 'Calendar is off.', ok: 'Connected - events refresh every 5 minutes.', pending: 'Fetching…', error: 'Last fetch failed. Check the URL and that the script is deployed for "Anyone".' }[st.cal] || '';
+  $('#calState').textContent = { off: 'Calendar is off.', ok: 'Connected - events refresh every 5 minutes.', pending: st.timeSynced ? 'Fetching…' : 'Waiting for the buddy\'s clock to sync (it needs internet access).', error: 'Last fetch failed' + (st.calErr ? ': ' + st.calErr : '') + '. Check the URL and that the script is deployed for "Anyone".' }[st.cal] || '';
 }
 function fmtUp(sec) { sec = sec | 0; const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return (d ? d + 'd ' : '') + (hh || d ? hh + 'h ' : '') + m + 'm'; }
 
