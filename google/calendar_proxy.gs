@@ -19,6 +19,7 @@
  * token the script returns an error and no calendar data. Treat the URL like a password. To revoke it,
  * change TOKEN and deploy a new version (Deploy -> Manage deployments -> edit -> New version).
  * Set HIDE_TITLES = true if you only want the buddy to know *when* you are busy, not *what* it is.
+ * Events marked Private show as "Busy" unless you set SHOW_PRIVATE_TITLES = true.
  */
 
 // ------------------------------------------------------------------ settings
@@ -29,6 +30,8 @@ var TOKEN = 'CHANGE-ME-to-a-long-random-string';
 var CALENDAR_IDS = [];
 
 var HIDE_TITLES = false;          // true: every event is shown as "Busy"
+var SHOW_PRIVATE_TITLES = false;  // true: events marked Private / Confidential show their real title
+                                  // (HIDE_TITLES = true still wins). Only works for calendars you own.
 var LOOKAHEAD_HOURS = 36;         // how far ahead the buddy looks
 var MAX_EVENTS = 8;               // the buddy shows at most this many
 var SKIP_ALL_DAY = true;          // all-day events (holidays, birthdays) are not meetings
@@ -87,8 +90,8 @@ function upcoming_(now) {
       seen[key] = true;
 
       var vis = ev.getVisibility();
-      var hidden = HIDE_TITLES ||
-        vis === CalendarApp.Visibility.PRIVATE || vis === CalendarApp.Visibility.CONFIDENTIAL;
+      var isPrivate = vis === CalendarApp.Visibility.PRIVATE || vis === CalendarApp.Visibility.CONFIDENTIAL;
+      var hidden = HIDE_TITLES || (isPrivate && !SHOW_PRIVATE_TITLES);
       var title = hidden ? 'Busy' : String(ev.getTitle() || '').replace(/\s+/g, ' ').trim() || '(no title)';
       out.push({ t: title.slice(0, 40), s: start, e: stop });
     }

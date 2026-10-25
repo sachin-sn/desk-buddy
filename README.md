@@ -85,7 +85,7 @@ A small device cannot log in to Google with calendar access, so a tiny script ru
 4. **Deploy -> New deployment -> Web app**: *Execute as: Me*, *Who has access: Anyone*. Copy the Web app URL and add `?t=` followed by your token.
 5. Paste the full URL into **Calendar & Mac -> Google Calendar** in the buddy's web editor and Save. Press *Show upcoming* to check.
 
-Private events appear as "Busy", declined and all-day events are hidden. Titles are shown in plain ASCII (accents and emoji become `?`). Set `HIDE_TITLES = true` in the script if the buddy should never see titles. Treat the URL like a password; to revoke it, change `TOKEN` and deploy a new version.
+Events marked *Private* appear as "Busy" by default; set `SHOW_PRIVATE_TITLES = true` in the script to show their real titles (then re-deploy: **Deploy -> Manage deployments -> pencil -> New version -> Deploy**, which keeps the same URL). Declined and all-day events are hidden. Titles are shown in plain ASCII (accents and emoji become `?`). Set `HIDE_TITLES = true` in the script if the buddy should never see titles. Treat the URL like a password; to revoke it, change `TOKEN` and deploy a new version.
 
 ### 6. Weather (optional)
 

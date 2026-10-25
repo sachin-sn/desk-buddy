@@ -124,6 +124,19 @@ test('private and confidential events show as Busy; HIDE_TITLES hides everything
   assert.deepEqual(up(sandbox).map(e => e.t), ['Busy', 'Busy', 'Busy']);
 });
 
+test('SHOW_PRIVATE_TITLES reveals private titles; HIDE_TITLES still wins', () => {
+  const t0 = NOW.getTime();
+  const events = [
+    ev('Therapy', t0 + H, t0 + 2 * H, { vis: Visibility.PRIVATE }),
+    ev('Merger talks', t0 + 2 * H, t0 + 3 * H, { vis: Visibility.CONFIDENTIAL }),
+    ev('Lunch', t0 + 3 * H, t0 + 4 * H, { vis: Visibility.PUBLIC }),
+  ];
+  let { sandbox } = load({ primary: cal(events) }, setToken + 'SHOW_PRIVATE_TITLES = true;');
+  assert.deepEqual(up(sandbox).map(e => e.t), ['Therapy', 'Merger talks', 'Lunch']);
+  ({ sandbox } = load({ primary: cal(events) }, setToken + 'SHOW_PRIVATE_TITLES = true; HIDE_TITLES = true;'));
+  assert.deepEqual(up(sandbox).map(e => e.t), ['Busy', 'Busy', 'Busy']);
+});
+
 test('titles are tidied: whitespace collapsed, trimmed to 40, empty becomes (no title)', () => {
   const t0 = NOW.getTime();
   const { sandbox } = load({ primary: cal([
