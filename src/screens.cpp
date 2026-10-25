@@ -1,11 +1,12 @@
-// LVGL screens: clock, shortcuts, timer, agenda, alert, settings, toast.
+// LVGL screens: clock, shortcuts, timer, agenda, weather, alert, settings, toast.
 // (The buddy itself is drawn by buddy.cpp; scrBuddy is just a black placeholder while it runs.)
 #include "ui_internal.h"
+#include "weathericon.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-static lv_obj_t *scrBuddy, *scrClock, *scrShort, *scrTimer, *scrAgenda, *scrAlert, *scrSettings;
+static lv_obj_t *scrBuddy, *scrClock, *scrShort, *scrTimer, *scrAgenda, *scrWeather, *scrAlert, *scrSettings;
 
 // ------------------------------------------------------------------ helpers
 static lv_obj_t* newScreen(uint32_t bg = 0x000000) {
@@ -313,6 +314,122 @@ void agendaRefresh(const Snapshot& s) {
   setText(lblAgFoot, aFoot, sizeof aFoot, foot);
 }
 
+// ------------------------------------------------------------------ weather
+// The icon is one transparent object that paints itself with LVGL's draw calls from the shared
+// geometry in weathericon.h (the same code the PC test renders to a picture), so it needs no
+// bitmap and no extra memory.
+static lv_obj_t *wxIconObj, *lblWxTemp, *lblWxWords, *lblWxRange, *lblWxPlace;
+static WxIcon   wxIconKind = WI_COUNT;                       // WI_COUNT = nothing to draw
+static char     cWxT[16], cWxW[24], cWxR[96], cWxP[40];
+
+struct LvPainter {
+  lv_draw_ctx_t* ctx;
+  int ox, oy;                                               // top-left corner of the icon object on screen
+  void box(int x1, int y1, int x2, int y2, int radius, uint32_t rgb) {
+    lv_draw_rect_dsc_t d;
+    lv_draw_rect_dsc_init(&d);
+    d.bg_color = lv_color_hex(rgb);
+    d.bg_opa = LV_OPA_COVER;
+    d.border_width = 0;
+    d.radius = radius;
+    lv_area_t a;
+    a.x1 = ox + x1; a.y1 = oy + y1; a.x2 = ox + x2; a.y2 = oy + y2;
+    lv_draw_rect(ctx, &d, &a);
+  }
+  void circle(int cx, int cy, int r, uint32_t rgb) { box(cx - r, cy - r, cx + r, cy + r, LV_RADIUS_CIRCLE, rgb); }
+  void rrect(int x1, int y1, int x2, int y2, int r, uint32_t rgb) { box(x1, y1, x2, y2, r, rgb); }
+  void line(int x1, int y1, int x2, int y2, int w, uint32_t rgb) {
+    lv_draw_line_dsc_t d;
+    lv_draw_line_dsc_init(&d);
+    d.color = lv_color_hex(rgb);
+    d.opa = LV_OPA_COVER;
+    d.width = w;
+    d.round_start = 1;
+    d.round_end = 1;
+    lv_point_t a, b;
+    a.x = ox + x1; a.y = oy + y1; b.x = ox + x2; b.y = oy + y2;
+    lv_draw_line(ctx, &d, &a, &b);
+  }
+};
+
+static void wxIconEvent(lv_event_t* e) {
+  if (wxIconKind >= WI_COUNT) return;
+  lv_area_t a;
+  lv_obj_get_coords(lv_event_get_target(e), &a);
+  LvPainter p{lv_event_get_draw_ctx(e), (int)a.x1, (int)a.y1};
+  weatherIconDraw(p, wxIconKind);
+}
+
+static void buildWeather() {
+  scrWeather = newScreen();
+  wxIconObj = lv_obj_create(scrWeather);
+  lv_obj_set_size(wxIconObj, WXI_W, WXI_H);
+  lv_obj_set_style_bg_opa(wxIconObj, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(wxIconObj, 0, 0);
+  lv_obj_set_style_pad_all(wxIconObj, 0, 0);
+  lv_obj_clear_flag(wxIconObj, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(wxIconObj, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_align(wxIconObj, LV_ALIGN_CENTER, 0, -66);
+  lv_obj_add_event_cb(wxIconObj, wxIconEvent, LV_EVENT_DRAW_MAIN_END, NULL);
+
+  lblWxTemp = newLabel(scrWeather, &lv_font_montserrat_48, 0xFFFFFF);
+  lv_obj_align(lblWxTemp, LV_ALIGN_CENTER, 0, 8);
+  lblWxWords = newLabel(scrWeather, &lv_font_montserrat_20, 0x9AA0A6);
+  lv_obj_align(lblWxWords, LV_ALIGN_CENTER, 0, 48);
+  lblWxRange = newLabel(scrWeather, &lv_font_montserrat_14, 0xC9CDD3);
+  lv_label_set_long_mode(lblWxRange, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(lblWxRange, 186);
+  lv_obj_align(lblWxRange, LV_ALIGN_CENTER, 0, 70);
+  lblWxPlace = newLabel(scrWeather, &lv_font_montserrat_14, 0x666B73);
+  lv_label_set_long_mode(lblWxPlace, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(lblWxPlace, 130);
+  lv_obj_align(lblWxPlace, LV_ALIGN_CENTER, 0, 92);
+}
+
+void weatherRefresh(const Snapshot& s) {
+  const Weather& w = s.wx;
+  char temp[16], words[24], range[96], place[40];
+  uint32_t wordsColor = 0x9AA0A6;
+  WxIcon icon = WI_COUNT;
+  temp[0] = words[0] = range[0] = place[0] = 0;
+
+  if (s.timeValid && weatherFresh(w, s.now)) {
+    icon = weatherIcon(w.code, w.isDay);
+    snprintf(temp, sizeof temp, "%d" WX_DEG "%c", (int)w.temp, w.unit);
+    snprintf(words, sizeof words, "%s", weatherWords(w.code, w.isDay));
+    wordsColor = weatherColor(w.code, w.isDay);
+    snprintf(range, sizeof range, "High %d" WX_DEG "   Low %d" WX_DEG, (int)w.hi, (int)w.lo);
+    snprintf(place, sizeof place, "%s", s.net.wxPlace);
+  } else {
+    // no reading we can trust: say why, in the same two lines
+    snprintf(temp, sizeof temp, "--");
+    switch (s.net.wxState) {
+      case CAL_NOT_SET: snprintf(words, sizeof words, "Weather is off");  snprintf(range, sizeof range, "turn on in the web page"); break;
+      case CAL_PENDING: snprintf(words, sizeof words, "%s", s.net.connected ? "Fetching..." : "No WiFi"); break;
+      case CAL_ERROR:   // a short reason fits on the line ("HTTP 429"); a long one is in the web page's Logs tab
+        snprintf(words, sizeof words, "Weather error");
+        snprintf(range, sizeof range, "%s", strlen(s.net.wxErr) <= 22 ? s.net.wxErr : "see Logs in the web page");
+        break;
+      default:          snprintf(words, sizeof words, "%s", s.timeValid ? "Out of date" : "Waiting for time"); break;
+    }
+    snprintf(place, sizeof place, "%s", s.net.wxPlace);
+  }
+
+  if (icon != wxIconKind) {
+    wxIconKind = icon;
+    lv_obj_invalidate(wxIconObj);
+  }
+  setText(lblWxTemp, cWxT, sizeof cWxT, temp);
+  lv_obj_align(lblWxTemp, LV_ALIGN_CENTER, 0, 8);
+  lv_obj_set_style_text_color(lblWxWords, lv_color_hex(wordsColor), 0);
+  setText(lblWxWords, cWxW, sizeof cWxW, words);
+  lv_obj_align(lblWxWords, LV_ALIGN_CENTER, 0, 48);
+  setText(lblWxRange, cWxR, sizeof cWxR, range);
+  lv_obj_align(lblWxRange, LV_ALIGN_CENTER, 0, 70);
+  setText(lblWxPlace, cWxP, sizeof cWxP, place);
+  lv_obj_align(lblWxPlace, LV_ALIGN_CENTER, 0, 92);
+}
+
 // ------------------------------------------------------------------ alert
 static lv_obj_t *lblAl1, *lblAl2;
 
@@ -393,6 +510,7 @@ void screensBuild() {
   buildShortcuts();
   buildTimer();
   buildAgenda();
+  buildWeather();
   buildAlert();
   buildSettings();
   buildToast();
@@ -404,6 +522,7 @@ lv_obj_t* screenFor(uint8_t mode) {
     case MODE_SHORTCUTS: return scrShort;
     case MODE_TIMER:     return scrTimer;
     case MODE_AGENDA:    return scrAgenda;
+    case MODE_WEATHER:   return scrWeather;
     case MODE_ALERT:     return scrAlert;
     case MODE_SETTINGS:  return scrSettings;
     default:             return scrBuddy;

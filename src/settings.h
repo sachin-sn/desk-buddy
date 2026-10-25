@@ -19,10 +19,10 @@ struct Settings {
   bool    ledOn       = true;    // WS2812 ring
   bool    bleHid      = true;
 
-  bool    weatherOn   = false;   // show the weather on the clock
+  bool    weatherOn   = false;   // show the weather on the clock and the weather screen
   float   wLat        = 0;       // chosen in the web editor (city search)
   float   wLon        = 0;
-  String  wPlace;                // display name, only shown in the web editor
+  String  wPlace;                // display name; the weather screen shows the part before the first comma
   char    wUnit       = 'C';     // 'C' or 'F'
 };
 

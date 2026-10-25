@@ -133,8 +133,16 @@ static void gotoMode(uint8_t m) {
   lv_obj_invalidate(lv_scr_act());
 }
 
+// The weather screen only joins the carousel once weather is switched on in the web editor.
+static bool modeAvailable(uint8_t m) { return m != MODE_WEATHER || gCfg.weatherOn; }
+
 static void navigate(int dir) {
-  gotoMode((uint8_t)((mode + MODE_CAROUSEL_COUNT + dir) % MODE_CAROUSEL_COUNT));
+  uint8_t m = mode;
+  for (int i = 0; i < MODE_CAROUSEL_COUNT; i++) {
+    m = (uint8_t)((m + MODE_CAROUSEL_COUNT + dir) % MODE_CAROUSEL_COUNT);
+    if (modeAvailable(m)) break;
+  }
+  gotoMode(m);
 }
 
 static void openSettings() {
@@ -271,7 +279,7 @@ static void refresh(uint32_t now) {
   // go back to the buddy when nobody is touching it
   uint32_t idle = now - lastActivity;
   if (mode == MODE_CLOCK && gCfg.clockSecs > 0 && idle > (uint32_t)gCfg.clockSecs * 1000) gotoMode(MODE_BUDDY);
-  else if ((mode == MODE_SHORTCUTS || mode == MODE_TIMER || mode == MODE_AGENDA) && idle > PAGE_IDLE_MS) gotoMode(MODE_BUDDY);
+  else if ((mode == MODE_SHORTCUTS || mode == MODE_TIMER || mode == MODE_AGENDA || mode == MODE_WEATHER) && idle > PAGE_IDLE_MS) gotoMode(MODE_BUDDY);
   else if (mode == MODE_SETTINGS && idle > SETTINGS_IDLE_MS) closeSettings();
 
   switch (mode) {
@@ -284,6 +292,7 @@ static void refresh(uint32_t now) {
     }
     case MODE_TIMER:    timerRefresh(cd, presetLabel(), nowMs); break;
     case MODE_AGENDA:   agendaRefresh(snap); break;
+    case MODE_WEATHER:  weatherRefresh(snap); break;
     case MODE_SETTINGS: settingsRefresh(snap, gCfg.bright, sleeping()); break;
     default: break;
   }
@@ -454,6 +463,11 @@ static void onInput(const InputEvent& ev) {
 
     case MODE_AGENDA:
       if (ev.type == IN_TAP || ev.type == IN_BTN_SHORT) { netCmd(NC_CAL_REFRESH); toast("Refreshing...", 1200); }
+      else if (ev.type == IN_BTN_LONG || ev.type == IN_LONG_TOUCH) openSettings();
+      break;
+
+    case MODE_WEATHER:
+      if (ev.type == IN_TAP || ev.type == IN_BTN_SHORT) { netCmd(NC_WX_REFRESH); toast("Refreshing...", 1200); }
       else if (ev.type == IN_BTN_LONG || ev.type == IN_LONG_TOUCH) openSettings();
       break;
 

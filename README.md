@@ -89,7 +89,11 @@ Events marked *Private* appear as "Busy" by default; set `SHOW_PRIVATE_TITLES = 
 
 ### 6. Weather (optional)
 
-Open `http://buddy.local` -> **Settings -> Weather**, type your city, press **Search**, click the right result, pick Celsius or Fahrenheit and press **Save weather**. The clock then shows something like `27°C Partly cloudy` above the time, in a colour that matches the conditions. The data is from [Open-Meteo](https://open-meteo.com) (free, no account or key) and refreshes every 15 minutes. If the buddy cannot refresh for 3 hours the line disappears instead of showing an old temperature. The city search runs in your browser, so the buddy only ever receives the coordinates; the **Logs** tab says why a fetch failed.
+Open `http://buddy.local` -> **Settings -> Weather**, type your city, press **Search**, click the right result, pick Celsius or Fahrenheit and press **Save weather**. The clock then shows something like `27°C Partly cloudy` above the time, and a **Weather** screen joins the swipe carousel after the agenda: a drawn icon (sun, moon, partly cloudy, cloud, fog, drizzle, rain, snow, storm, day or night), the temperature, the conditions, today's high and low, and the city. Tap it to refresh. If there is no usable reading it says why (off, fetching, error, out of date) instead of showing an old number. The data is from [Open-Meteo](https://open-meteo.com) (free, no account or key) and refreshes every 15 minutes. If the buddy cannot refresh for 3 hours the line disappears instead of showing an old temperature. The city search runs in your browser, so the buddy only ever receives the coordinates; the **Logs** tab says why a fetch failed.
+
+![The weather screen for each icon, and its messages when there is no reading, rendered on a PC with the firmware's own drawing code](docs/weather-screens.png)
+
+*Preview rendered on a PC from the same code the board runs; the real display's colours and anti-aliasing will differ slightly.*
 
 ## Using it
 
@@ -100,9 +104,10 @@ Open `http://buddy.local` -> **Settings -> Weather**, type your city, press **Se
 | **Shortcuts** | swipe left from the clock | tap a button to fire it | turn: next/previous page; press: back to buddy |
 | **Timer** | swipe left again | tap or knob press: start / pause; swipe up/down: next preset | turn: set the time (when stopped); long press: reset |
 | **Agenda** | swipe left again | tap: refresh | - |
+| **Weather** (once switched on) | swipe left again | tap: refresh | - |
 | **Settings** | long press | tap: close | turn: brightness |
 
-Swipe left goes forward through *Buddy -> Clock -> Shortcuts -> Timer -> Agenda -> Buddy*; swipe right goes back. Any screen returns to the buddy after 45 seconds (the clock after 15). Any touch or press dismisses a meeting or timer alert.
+Swipe left goes forward through *Buddy -> Clock -> Shortcuts -> Timer -> Agenda -> Weather -> Buddy* (Weather only appears once you have switched it on in the web editor); swipe right goes back. Any screen returns to the buddy after 45 seconds (the clock after 15). Any touch or press dismisses a meeting or timer alert.
 
 Moods: *surprised* when a meeting is less than 10 minutes away, *happy* right after a tap, *grumpy* while the Mac's CPU is at 85% or more (needs the helper), *tired* when it has been idle late in the evening, *asleep* from 23:00 to 07:00 (dimmed, LEDs off). Hours and brightness are in the web editor's Settings tab.
 
@@ -125,7 +130,7 @@ The editor checks the syntax as you type, and the **play button** next to each r
 ```
 src/            firmware (C++, Arduino framework)
   eyes.h          eye animation + mood logic (pure; shared with host tests)
-  keycombo.h      shortcut parser (pure)         agenda.h  countdown.h  weather.h  (pure)
+  keycombo.h      shortcut parser (pure)         agenda.h  countdown.h  weather.h  weathericon.h  (pure)
   buddy.cpp       draws the eyes into a sprite   screens.cpp  LVGL screens
   ui.cpp          modes, input, alerts, LEDs     (core 1, never blocks)
   net.cpp web.cpp WiFi, setup portal, web API    (core 0)

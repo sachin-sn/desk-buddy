@@ -53,7 +53,8 @@ enum NetCmdType : uint8_t {
   NC_NOTIFY,         // a = title, b = body (desktop notification on the Mac)
   NC_SAVE_TIMER,     // n1 = state, n2 = duration s, n3 = remaining s (all 0 = clear)
   NC_SAVE_BRIGHT,    // persist brightness
-  NC_CAL_REFRESH     // fetch the calendar now
+  NC_CAL_REFRESH,    // fetch the calendar now
+  NC_WX_REFRESH      // fetch the weather now
 };
 struct NetCmd {
   NetCmdType type;
@@ -85,6 +86,7 @@ struct NetStatus {
   char   calErr[96];     // why the last calendar fetch failed (empty when it worked)
   uint8_t wxState;       // CalState values reused: NOT_SET = weather off
   char   wxErr[80];      // why the last weather fetch failed
+  char   wxPlace[40];    // city name for the weather screen (ASCII)
 };
 struct MacStats {
   float    cpu, ram;     // percent 0..100, pushed by the Mac helper

@@ -153,6 +153,11 @@ static void updateStatus() {
   strlcpy(s.calErr, calErrText, sizeof(s.calErr));
   s.wxState = gCfg.weatherOn ? wxState : CAL_NOT_SET;
   strlcpy(s.wxErr, wxErrText, sizeof(s.wxErr));
+  {
+    char city[48];
+    weatherCityName(gCfg.wPlace.c_str(), city, sizeof city);
+    agendaSanitize(city, s.wxPlace, sizeof s.wxPlace);       // the display fonts only have ASCII
+  }
   portENTER_CRITICAL(&gMux);
   gNet = s;
   portEXIT_CRITICAL(&gMux);
@@ -256,6 +261,7 @@ static void handleCmd(const NetCmd& c) {
     }
     case NC_SAVE_BRIGHT: settingsSave(); break;
     case NC_CAL_REFRESH: calWanted = true; break;
+    case NC_WX_REFRESH:  wxWanted = true; break;
   }
 }
 

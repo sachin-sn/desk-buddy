@@ -54,6 +54,17 @@ int main() {
   CHECK(!weatherCoordsOk(NAN, 10.f));
   CHECK(!weatherCoordsOk(10.f, NAN));
 
+  // city name for the weather screen
+  char city[24];
+  weatherCityName("Bengaluru, Karnataka, India", city, sizeof city); CHECK_STR(city, "Bengaluru");
+  weatherCityName("  Pune  ", city, sizeof city);                   CHECK_STR(city, "Pune");
+  weatherCityName("Tokyo", city, sizeof city);                      CHECK_STR(city, "Tokyo");
+  weatherCityName(",nothing before", city, sizeof city);            CHECK_STR(city, "");
+  weatherCityName("", city, sizeof city);                           CHECK_STR(city, "");
+  weatherCityName(nullptr, city, sizeof city);                      CHECK_STR(city, "");
+  char c6[6];
+  weatherCityName("Johannesburg, South Africa", c6, sizeof c6);     CHECK_STR(c6, "Johan");   // truncates, never overflows
+
   // request URL
   char url[260];
   int n = weatherUrl(url, sizeof url, 12.9716f, 77.5946f, 'C');

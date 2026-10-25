@@ -69,6 +69,17 @@ inline bool weatherFresh(const Weather& w, uint32_t now, uint32_t maxAgeSec = 3U
   return age >= -60 && age <= (int32_t)maxAgeSec;
 }
 
+// "Bengaluru, Karnataka, India" -> "Bengaluru": the part before the first comma, for the weather screen.
+inline void weatherCityName(const char* place, char* out, size_t n) {
+  if (n == 0) return;
+  size_t o = 0;
+  const char* p = place ? place : "";
+  while (*p == ' ') p++;
+  for (; *p && *p != ',' && o + 1 < n; p++) out[o++] = *p;
+  while (o > 0 && out[o - 1] == ' ') o--;
+  out[o] = 0;
+}
+
 // Latitude/longitude must be real numbers in range. (0, 0) is open ocean and means "not set".
 inline bool weatherCoordsOk(float lat, float lon) {
   if (!(lat == lat) || !(lon == lon)) return false;

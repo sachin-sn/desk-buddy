@@ -7,7 +7,7 @@
 #include "agenda.h"
 
 enum Mode : uint8_t {
-  MODE_BUDDY = 0, MODE_CLOCK, MODE_SHORTCUTS, MODE_TIMER, MODE_AGENDA,   // swipe carousel, in this order
+  MODE_BUDDY = 0, MODE_CLOCK, MODE_SHORTCUTS, MODE_TIMER, MODE_AGENDA, MODE_WEATHER,   // swipe carousel, in this order
   MODE_CAROUSEL_COUNT,
   MODE_ALERT = 50, MODE_SETTINGS = 51
 };
@@ -37,6 +37,8 @@ void shortcutsTick(uint32_t nowMs);
 void timerRefresh(const Countdown& c, const char* presetLabel, uint64_t nowMs);
 
 void agendaRefresh(const Snapshot& s);
+
+void weatherRefresh(const Snapshot& s);
 
 void alertShow(const char* line1, const char* line2, uint32_t bgColor);
 
