@@ -81,7 +81,7 @@ struct NetStatus {
   bool   helperSet;      // a Mac helper address is configured
   bool   helperOk;       // last call to the Mac helper worked
   uint8_t calState;      // CalState
-  char   calErr[48];     // why the last calendar fetch failed (empty when it worked)
+  char   calErr[96];     // why the last calendar fetch failed (empty when it worked)
 };
 struct MacStats {
   float    cpu, ram;     // percent 0..100, pushed by the Mac helper
