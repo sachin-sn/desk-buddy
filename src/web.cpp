@@ -169,6 +169,20 @@ static void handleStatus() {
   d["helperOk"] = n.helperOk;
   d["cal"] = calStateName(n.calState);
   d["calErr"] = n.calErr;
+  {
+    Weather w;
+    portENTER_CRITICAL(&gMux); w = gWeather; portEXIT_CRITICAL(&gMux);
+    JsonObject wx = d["wx"].to<JsonObject>();
+    wx["state"] = calStateName(n.wxState);          // off | pending | ok | error
+    wx["err"] = n.wxErr;
+    if (w.valid) {
+      char unit[2] = { w.unit, 0 };
+      wx["temp"] = w.temp; wx["hi"] = w.hi; wx["lo"] = w.lo;
+      wx["unit"] = unit;
+      wx["words"] = weatherWords(w.code, w.isDay);
+      wx["fetched"] = w.fetched;
+    }
+  }
   d["timeSynced"] = n.timeSynced;
   d["now"] = n.timeSynced ? (uint32_t)time(nullptr) : 0;
   d["uptime"] = millis() / 1000;
@@ -195,6 +209,11 @@ static void handleSettingsGet() {
   d["calSet"] = !gCfg.calUrl.isEmpty();          // the URL carries a secret, so it is never sent back
   d["helperHost"] = gCfg.helperHost;
   d["helperPort"] = gCfg.helperPort;
+  d["weatherOn"] = gCfg.weatherOn;
+  d["wLat"] = gCfg.wLat;
+  d["wLon"] = gCfg.wLon;
+  d["wPlace"] = gCfg.wPlace;
+  d["wUnit"] = String(gCfg.wUnit);
   sendJson(d);
 }
 
@@ -281,6 +300,17 @@ static void handleSettingsPost() {
   if (d["host"].is<const char*>() && !hostNameOk(d["host"].as<String>())) return sendErr(400, "name: letters, digits and - only (max 24)");
   if (d["calUrl"].is<const char*>() && !calUrlOk(d["calUrl"].as<String>()))
     return sendErr(400, "calendar URL must start with https://script.google.com/macros/s/");
+  {
+    float lat = d["wLat"].is<float>() ? d["wLat"].as<float>() : gCfg.wLat;
+    float lon = d["wLon"].is<float>() ? d["wLon"].as<float>() : gCfg.wLon;
+    bool on = d["weatherOn"].is<bool>() ? d["weatherOn"].as<bool>() : gCfg.weatherOn;
+    if ((d["wLat"].is<float>() || d["wLon"].is<float>()) && !weatherCoordsOk(lat, lon))
+      return sendErr(400, "weather location: latitude must be -90..90 and longitude -180..180");
+    if (on && !weatherCoordsOk(lat, lon)) return sendErr(400, "weather: search for your city and choose it first");
+    if (d["wUnit"].is<const char*>() && d["wUnit"].as<String>() != "C" && d["wUnit"].as<String>() != "F")
+      return sendErr(400, "weather unit must be C or F");
+    if (d["wPlace"].is<const char*>() && d["wPlace"].as<String>().length() > 60) return sendErr(400, "place name is too long");
+  }
   if (d["helperHost"].is<const char*>() && !helperHostOk(d["helperHost"].as<String>()))
     return sendErr(400, "Mac address: use a private IP (192.168.x.x) or a name ending in .local");
   if (d["helperPort"].is<int>() && (d["helperPort"].as<int>() < 1 || d["helperPort"].as<int>() > 65535)) return sendErr(400, "port out of range");
@@ -289,6 +319,16 @@ static void handleSettingsPost() {
   if (d["tz"].is<const char*>() && gCfg.tz != d["tz"].as<String>()) { gCfg.tz = d["tz"].as<String>(); tzChanged = true; }
   if (d["host"].is<const char*>() && gCfg.host != d["host"].as<String>()) { gCfg.host = d["host"].as<String>(); reboot = true; }
   if (d["calUrl"].is<const char*>() && gCfg.calUrl != d["calUrl"].as<String>()) { gCfg.calUrl = d["calUrl"].as<String>(); calChanged = true; }
+  bool wxChanged = false;
+  if (d["weatherOn"].is<bool>() && gCfg.weatherOn != d["weatherOn"].as<bool>()) { gCfg.weatherOn = d["weatherOn"].as<bool>(); wxChanged = true; }
+  if (d["wLat"].is<float>() && gCfg.wLat != d["wLat"].as<float>()) { gCfg.wLat = d["wLat"].as<float>(); wxChanged = true; }
+  if (d["wLon"].is<float>() && gCfg.wLon != d["wLon"].as<float>()) { gCfg.wLon = d["wLon"].as<float>(); wxChanged = true; }
+  if (d["wUnit"].is<const char*>() && gCfg.wUnit != d["wUnit"].as<String>()[0]) { gCfg.wUnit = d["wUnit"].as<String>()[0]; wxChanged = true; }
+  if (d["wPlace"].is<const char*>()) {
+    String pl = d["wPlace"].as<String>();
+    for (size_t i = 0; i < pl.length(); i++) if ((unsigned char)pl[i] < ' ' || pl[i] == '"' || pl[i] == '\\') pl.setCharAt(i, ' ');
+    gCfg.wPlace = pl;
+  }
   if (d["helperHost"].is<const char*>()) gCfg.helperHost = d["helperHost"].as<String>();
   if (d["helperPort"].is<int>()) gCfg.helperPort = (uint16_t)d["helperPort"].as<int>();
   if (d["bright"].is<int>())      gCfg.bright      = (uint8_t)constrain(d["bright"].as<int>(), 10, 255);
@@ -306,6 +346,11 @@ static void handleSettingsPost() {
   logEvent("settings saved%s%s", calChanged ? " (calendar link changed)" : "", reboot ? ", restarting to apply" : "");
   if (tzChanged) netApplyTime();
   if (calChanged) netRequestCalendar();
+  if (wxChanged) {
+    portENTER_CRITICAL(&gMux); gWeather.valid = false; portEXIT_CRITICAL(&gMux);     // never show the old place's weather
+    logEvent("weather: %s%s%s", gCfg.weatherOn ? "on for " : "off", gCfg.weatherOn ? gCfg.wPlace.c_str() : "", gCfg.weatherOn ? (gCfg.wUnit == 'F' ? " (F)" : " (C)") : "");
+    netRequestWeather();
+  }
 
   JsonDocument r;
   r["ok"] = true;
@@ -451,6 +496,7 @@ void webInit() {
   server.on("/api/layout/reset", HTTP_POST, handleLayoutReset);
   server.on("/api/test", HTTP_POST, handleTest);
   server.on("/api/stats", HTTP_POST, handleStats);
+  server.on("/api/weather/refresh", HTTP_POST, []() { if (!requireAuth()) return; netRequestWeather(); sendOk(); });
   server.on("/api/calendar/refresh", HTTP_POST, []() { if (!requireAuth()) return; netRequestCalendar(); sendOk(); });
   server.on("/api/reboot", HTTP_POST, []() { if (!requireAuth()) return; sendOk(); netRequestReboot(); });
   server.on("/update", HTTP_POST, otaDone, otaChunk);

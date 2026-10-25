@@ -98,6 +98,7 @@ static void takeSnapshot() {
   snap.net = gNet;
   snap.mac = gMac;
   snap.agenda = gAgenda;
+  snap.wx = gWeather;
   portEXIT_CRITICAL(&gMux);
 }
 

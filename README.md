@@ -3,7 +3,7 @@
 A tiny desk companion for the **Elecrow CrowPanel 1.28" ESP32-S3 round display** (240x240, touch, rotary knob, 5 RGB LEDs).
 
 - **Buddy** - on standby it is a pair of animated eyes that blink, look around, get sleepy at night, surprised before a meeting and grumpy when your Mac is working hard.
-- **Tap for the clock** - one tap shows the time, the date and your next meeting, then it goes back to being a buddy.
+- **Tap for the clock** - one tap shows the time, the date, the weather and your next meeting, then it goes back to being a buddy.
 - **Shortcut keys** - it is a Bluetooth keyboard: Spotlight, screenshots, lock screen, mute in Meet / Zoom / Teams, media keys, any combination you define. Buttons can also **launch apps and run automations** on your Mac through a small helper.
 - **Google Calendar** - upcoming meetings, a warning 10 minutes before and when one starts.
 - **Timers** - presets (Focus 25, Break 5, ...) or dial any time with the knob; the LED ring shows progress, and the Mac gets a notification when it ends.
@@ -87,6 +87,10 @@ A small device cannot log in to Google with calendar access, so a tiny script ru
 
 Private events appear as "Busy", declined and all-day events are hidden. Titles are shown in plain ASCII (accents and emoji become `?`). Set `HIDE_TITLES = true` in the script if the buddy should never see titles. Treat the URL like a password; to revoke it, change `TOKEN` and deploy a new version.
 
+### 6. Weather (optional)
+
+Open `http://buddy.local` -> **Settings -> Weather**, type your city, press **Search**, click the right result, pick Celsius or Fahrenheit and press **Save weather**. The clock then shows something like `27°C Partly cloudy` above the time, in a colour that matches the conditions. The data is from [Open-Meteo](https://open-meteo.com) (free, no account or key) and refreshes every 15 minutes. If the buddy cannot refresh for 3 hours the line disappears instead of showing an old temperature. The city search runs in your browser, so the buddy only ever receives the coordinates; the **Logs** tab says why a fetch failed.
+
 ## Using it
 
 | Screen | Get there | Touch | Knob |
@@ -121,7 +125,7 @@ The editor checks the syntax as you type, and the **play button** next to each r
 ```
 src/            firmware (C++, Arduino framework)
   eyes.h          eye animation + mood logic (pure; shared with host tests)
-  keycombo.h      shortcut parser (pure)         agenda.h  countdown.h  (pure)
+  keycombo.h      shortcut parser (pure)         agenda.h  countdown.h  weather.h  (pure)
   buddy.cpp       draws the eyes into a sprite   screens.cpp  LVGL screens
   ui.cpp          modes, input, alerts, LEDs     (core 1, never blocks)
   net.cpp web.cpp WiFi, setup portal, web API    (core 0)
@@ -137,7 +141,7 @@ docs/           DESIGN.md, POWER.md, BACKLOG.md, CHANGES_FROM_CLOCK.md
 ## Tests
 
 ```sh
-make -C test/host test              # C++ logic: countdown, agenda, shortcuts, eyes, default layout
+make -C test/host test              # C++ logic: countdown, agenda, shortcuts, eyes, default layout, log buffer, weather
 make -C test/host render            # renders test/host/out/eyes_sheet.png (needs Pillow)
 (cd helper && npm test)             # Mac helper
 (cd google && node --test test/*.test.js)   # calendar script against a fake CalendarApp
@@ -149,7 +153,7 @@ The same checks, plus a full `pio run`, run in GitHub Actions (`.github/workflow
 ## What has and has not been verified
 
 Verified in a Linux sandbox:
-- all pure logic (countdown, agenda alerts, shortcut parser, eye engine, default layout) by host tests built as C++11, the standard the ESP32 core uses
+- all pure logic (countdown, agenda alerts, shortcut parser, eye engine, default layout, log buffer, weather words and URL) by host tests built as C++11, the standard the ESP32 core uses
 - every firmware source file compiles with the real ESP32-S3 GCC 12.2 against Arduino-ESP32 2.0.17 and the pinned libraries with `-Wall -Wextra`, no warnings; every function the sources call is defined (not linked into an image)
 - the web editor in headless Chromium against a simulated device (editing, validation, saving, test buttons, phone width)
 - the Mac helper (18 tests, plus an end-to-end run with a fake buddy) and the calendar script (11 tests)
@@ -171,6 +175,7 @@ Verified in a Linux sandbox:
 - The web editor and the helper are for your home network. Both use plain HTTP; do not forward their ports to the internet.
 - Changing anything on the buddy needs the admin password (and a header web pages on other sites cannot add); six wrong attempts lock logins for 30 seconds. The first-boot setup hotspot is WPA2 with a random password shown only on the device.
 - The helper only runs actions you wrote in `actions.json`, starts programs without a shell, only answers requests from private network addresses, and needs the shared token. The buddy accepts a Mac address only if it is a private IP or a `.local` name, so the token is not sent anywhere else.
+- Weather sends only the coordinates of the city you chose to Open-Meteo, over HTTPS.
 - The calendar link contains a secret token. Anyone with the link can read the event list the script returns, nothing more.
 
 ## Backlog and GitHub

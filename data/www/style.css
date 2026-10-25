@@ -92,6 +92,8 @@ button.icon { padding: 0; width: 34px; min-height: 34px; }
 .preset { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; align-items: center; padding: 6px 0; }
 .preset .err { grid-column: 1 / -1; color: var(--danger); font-size: 12.5px; }
 
+.picklist { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.picklist button { width: 100%; text-align: left; }
 .agenda { list-style: none; padding: 0; margin: 10px 0 0; }
 .agenda li { display: flex; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); }
 .agenda time { color: var(--muted); min-width: 150px; font-variant-numeric: tabular-nums; }

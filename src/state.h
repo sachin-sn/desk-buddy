@@ -7,6 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "agenda.h"
+#include "weather.h"
 
 #define FW_VERSION "0.1.0"
 
@@ -82,6 +83,8 @@ struct NetStatus {
   bool   helperOk;       // last call to the Mac helper worked
   uint8_t calState;      // CalState
   char   calErr[96];     // why the last calendar fetch failed (empty when it worked)
+  uint8_t wxState;       // CalState values reused: NOT_SET = weather off
+  char   wxErr[80];      // why the last weather fetch failed
 };
 struct MacStats {
   float    cpu, ram;     // percent 0..100, pushed by the Mac helper
@@ -92,3 +95,4 @@ extern portMUX_TYPE gMux;
 extern NetStatus    gNet;
 extern MacStats     gMac;
 extern Agenda       gAgenda;
+extern Weather      gWeather;

@@ -367,6 +367,7 @@ function renderStatus() {
     ['Web files', `${Math.round(st.fsUsed / 1024)} KB of ${Math.round(st.fsTotal / 1048576)} MB used`]];
   $('#dev').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: String(v) })]));
   $('#hostHint').textContent = (S.cfg.host || st.host || 'buddy') + '.local';
+  $('#wxState').textContent = wxStatusText(st);
   $('#calState').textContent = { off: 'Calendar is off.', ok: 'Connected - events refresh every 5 minutes.', pending: st.timeSynced ? 'Fetching…' : 'Waiting for the buddy\'s clock to sync (it needs internet access).', error: 'Last fetch failed' + (st.calErr ? ': ' + st.calErr : '') + '. Check the URL and that the script is deployed for "Anyone". The Logs tab has the history.' }[st.cal] || '';
 }
 function fmtUp(sec) { sec = sec | 0; const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return (d ? d + 'd ' : '') + (hh || d ? hh + 'h ' : '') + m + 'm'; }
@@ -453,6 +454,68 @@ function fillTz() {
 function bindRange(id, out) { $(id).addEventListener('input', e => { $(out).textContent = e.target.value; }); }
 bindRange('#sBright', '#oBright'); bindRange('#sNight', '#oNight');
 
+// ------------------------------------------------------------------ weather card (Settings tab)
+// The city search runs in this browser (Open-Meteo's geocoding service); the buddy only ever gets the chosen coordinates.
+const WX = { lat: 0, lon: 0, place: '' };
+function wxChosenText() { return WX.place ? `${WX.place} (${(+WX.lat).toFixed(2)}, ${(+WX.lon).toFixed(2)})` : 'none'; }
+function fillWeather() {
+  const c = S.cfg;
+  WX.lat = c.wLat || 0; WX.lon = c.wLon || 0; WX.place = c.wPlace || '';
+  $('#wxUnit').value = c.wUnit === 'F' ? 'F' : 'C';
+  $('#wxOn').checked = !!c.weatherOn;
+  $('#wxChosen').textContent = wxChosenText();
+}
+function utf8Trim(s, maxBytes) {                   // the buddy stores at most 60 bytes of place name
+  const enc = new TextEncoder();
+  while (s && enc.encode(s).length > maxBytes) s = s.slice(0, -1);
+  return s;
+}
+function pickCity(p, label) {
+  WX.lat = p.latitude; WX.lon = p.longitude; WX.place = utf8Trim(label, 58);
+  $('#wxChosen').textContent = wxChosenText();
+  $('#wxOn').checked = true;
+  $('#wxResults').replaceChildren();
+}
+$('#wxFind').addEventListener('click', ev => guarded(ev.target, async () => {
+  const q = $('#wxQuery').value.trim();
+  if (q.length < 2) throw new Error('Type at least two letters of the city name');
+  let r;
+  try { r = await fetch('https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name=' + encodeURIComponent(q)); }
+  catch (_) { throw new Error('Could not reach the city search - is this computer online?'); }
+  if (!r.ok) throw new Error('City search failed (HTTP ' + r.status + ')');
+  const res = (await r.json()).results || [];
+  $('#wxResults').replaceChildren(...(res.length
+    ? res.map(p => { const label = [p.name, p.admin1, p.country].filter(Boolean).join(', ');
+        return h('li', {}, h('button', { class: 'ghost', type: 'button', text: label, onclick: () => pickCity(p, label) })); })
+    : [h('li', { class: 'muted', text: 'No city found - try another spelling.' })]));
+}));
+$('#wxQuery').addEventListener('keydown', ev => { if (ev.key === 'Enter') $('#wxFind').click(); });
+$('#wxSave').addEventListener('click', ev => guarded(ev.target, async () => {
+  const on = $('#wxOn').checked;
+  if (on && !WX.place) throw new Error('Search for your city and choose it first');
+  const body = { weatherOn: on, wUnit: $('#wxUnit').value };
+  if (WX.place) { body.wLat = WX.lat; body.wLon = WX.lon; body.wPlace = WX.place; }
+  await api('/api/settings', body);
+  S.cfg = await api('/api/settings');
+  fillWeather();
+  toast(on ? 'Saved - fetching the weather…' : 'Weather is off', 'good');
+  pollStatus(); setTimeout(pollStatus, 4000);
+}));
+$('#wxRefresh').addEventListener('click', ev => guarded(ev.target, async () => {
+  await api('/api/weather/refresh', {});
+  toast('Refreshing…'); setTimeout(pollStatus, 4000);
+}));
+function wxStatusText(st) {
+  const w = st.wx || {};
+  if (w.state === 'ok') {
+    const ago = st.now && w.fetched ? Math.max(0, Math.round((st.now - w.fetched) / 60)) : null;
+    return `${w.temp}°${w.unit} ${w.words}, high ${w.hi}° low ${w.lo}°` + (ago == null ? '' : `, updated ${ago} min ago`);
+  }
+  if (w.state === 'error') return 'Last fetch failed' + (w.err ? ': ' + w.err : '') + '. The Logs tab has the history.';
+  if (w.state === 'pending') return st.timeSynced ? 'Fetching…' : "Waiting for the buddy's clock to sync (it needs internet access).";
+  return 'Weather is off.';
+}
+
 function fillSettings() {
   const c = S.cfg;
   $('#sBright').value = c.bright; $('#oBright').textContent = c.bright;
@@ -463,6 +526,7 @@ function fillSettings() {
   $('#sTz').value = c.tz; $('#sTzPick').value = TZ.some(t => t[1] === c.tz) ? c.tz : '';
   $('#sHost').value = c.host;
   $('#helperHost').value = c.helperHost || ''; $('#helperPort').value = c.helperPort;
+  fillWeather();
   $('#calUrl').placeholder = c.calSet ? 'saved (hidden) - paste a new URL to replace it' : 'https://script.google.com/macros/s/…/exec?t=…';
 }
 

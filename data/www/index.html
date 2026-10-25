@@ -139,6 +139,25 @@
       <label class="check"><input id="sLed" type="checkbox"> LED ring on</label>
       <label class="check"><input id="sBle" type="checkbox"> Bluetooth keyboard (needs a restart to change)</label>
     </div>
+    <div class="card" id="wxCard">
+      <h2>Weather</h2>
+      <p class="muted">Shows the temperature and conditions above the time on the clock screen. The data comes from <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, which is free and needs no account. Only the coordinates of the city you choose are sent.</p>
+      <div class="row">
+        <label class="grow">City<input id="wxQuery" placeholder="e.g. Bengaluru" autocomplete="off" spellcheck="false"></label>
+        <button id="wxFind" class="ghost">Search</button>
+      </div>
+      <ul id="wxResults" class="picklist"></ul>
+      <p>Chosen: <b id="wxChosen">none</b></p>
+      <div class="grid">
+        <label>Units<select id="wxUnit"><option value="C">Celsius (&deg;C)</option><option value="F">Fahrenheit (&deg;F)</option></select></label>
+      </div>
+      <label class="check"><input id="wxOn" type="checkbox"> Show the weather on the clock</label>
+      <p id="wxState" class="muted"></p>
+      <div class="row end">
+        <button id="wxRefresh" class="ghost">Refresh now</button>
+        <button id="wxSave">Save weather</button>
+      </div>
+    </div>
     <div class="card">
       <h2>Time &amp; network</h2>
       <div class="grid">

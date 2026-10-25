@@ -34,7 +34,7 @@ Nothing in this repository has run on a real board yet, so milestone M0 is the r
 | M2-05 | 12-hour clock and date format options | firmware |
 | M2-06 | Photos and a wiring/assembly page for the README | docs |
 | M3-01 | Battery backup: external module, then an optional indicator | idea, hardware |
-| M3-02 | Weather on the clock screen | idea |
+| M3-02 | Weather icons and today's high/low on the clock | idea |
 | M3-03 | Pomodoro cycles | idea |
 | M3-04 | Slack / Teams status and mute indicators | idea, mac-helper |
 | M3-05 | Windows / Linux helper | idea, mac-helper |
@@ -436,19 +436,19 @@ Done when:
 - [ ] Backup module wired and the buddy keeps running when USB power is unplugged
 - [ ] Measured current draw recorded in docs/POWER.md
 
-### M3-02 - Weather on the clock screen
+### M3-02 - Weather icons and today's high/low on the clock
 
 Labels: `idea`
 
-Small temperature/icon next to the date, fetched from a free weather API.
+The clock already shows temperature and words (see Weather in the README). Add a small drawn icon for sun/cloud/rain/snow/storm and the day's high and low, which the buddy already fetches but only shows in the web editor.
 
 Files:
-- `src/net.cpp`
 - `src/screens.cpp`
-- `src/state.h`
+- `src/weather.h`
 
 Done when:
-- [ ] Shows current temperature
+- [ ] An icon matching the conditions is drawn on the clock
+- [ ] High and low are readable without crowding the time
 
 ### M3-03 - Pomodoro cycles
 

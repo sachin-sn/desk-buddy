@@ -18,6 +18,12 @@ struct Settings {
   uint8_t clockSecs   = 15;      // clock screen returns to the buddy after this many seconds
   bool    ledOn       = true;    // WS2812 ring
   bool    bleHid      = true;
+
+  bool    weatherOn   = false;   // show the weather on the clock
+  float   wLat        = 0;       // chosen in the web editor (city search)
+  float   wLon        = 0;
+  String  wPlace;                // display name, only shown in the web editor
+  char    wUnit       = 'C';     // 'C' or 'F'
 };
 
 extern Settings gCfg;

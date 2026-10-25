@@ -19,6 +19,7 @@ portMUX_TYPE  gMux = portMUX_INITIALIZER_UNLOCKED;
 NetStatus     gNet{};
 MacStats      gMac{};
 Agenda        gAgenda{};
+Weather       gWeather{};
 
 void setup() {
   Serial.begin(115200);

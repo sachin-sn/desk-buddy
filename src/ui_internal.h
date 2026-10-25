@@ -20,6 +20,7 @@ struct Snapshot {
   NetStatus net;
   MacStats  mac;
   Agenda    agenda;
+  Weather   wx;
 };
 
 // ---- screens.cpp ----

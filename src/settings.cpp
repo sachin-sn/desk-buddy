@@ -30,6 +30,11 @@ void settingsLoad() {
   gCfg.clockSecs   = prefs.getUChar("cto", 15);
   gCfg.ledOn       = prefs.getBool("led", true);
   gCfg.bleHid      = prefs.getBool("ble", true);
+  gCfg.weatherOn   = prefs.getBool("wx", false);
+  gCfg.wLat        = prefs.getFloat("wlat", 0);
+  gCfg.wLon        = prefs.getFloat("wlon", 0);
+  gCfg.wPlace      = prefs.getString("wname", "");
+  gCfg.wUnit       = prefs.getUChar("wunit", 'C') == 'F' ? 'F' : 'C';
   prefs.end();
 
   if (gCfg.apiToken.isEmpty()) {          // first boot: make the shared secret once
@@ -57,6 +62,11 @@ void settingsSave() {
   prefs.putUChar("cto", gCfg.clockSecs);
   prefs.putBool("led", gCfg.ledOn);
   prefs.putBool("ble", gCfg.bleHid);
+  prefs.putBool("wx", gCfg.weatherOn);
+  prefs.putFloat("wlat", gCfg.wLat);
+  prefs.putFloat("wlon", gCfg.wLon);
+  prefs.putString("wname", gCfg.wPlace);
+  prefs.putUChar("wunit", (uint8_t)gCfg.wUnit);
   prefs.end();
 }
 

@@ -54,8 +54,8 @@ static void setText(lv_obj_t* l, char* cache, size_t n, const char* text) {
 }
 
 // ------------------------------------------------------------------ clock
-static lv_obj_t *arcSec, *lblTime, *lblDate, *lblNext;
-static char cTime[8], cDate[20], cNext[40];
+static lv_obj_t *arcSec, *lblTime, *lblDate, *lblNext, *lblWx;
+static char cTime[8], cDate[20], cNext[40], cWx[40];
 
 static void buildClock() {
   scrClock = newScreen();
@@ -68,6 +68,11 @@ static void buildClock() {
   lv_label_set_long_mode(lblNext, LV_LABEL_LONG_DOT);
   lv_obj_set_width(lblNext, 170);
   lv_obj_align(lblNext, LV_ALIGN_CENTER, 0, 64);
+  lblWx = newLabel(scrClock, &lv_font_montserrat_14, 0x9AA0A6);          // weather, above the time
+  lv_label_set_long_mode(lblWx, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(lblWx, 160);
+  lv_obj_set_style_text_align(lblWx, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(lblWx, LV_ALIGN_CENTER, 0, -66);
 }
 
 void clockRefresh(const Snapshot& s, const char* nextLine, uint32_t nextColor) {
@@ -83,6 +88,17 @@ void clockRefresh(const Snapshot& s, const char* nextLine, uint32_t nextColor) {
   lv_obj_set_style_text_color(lblNext, lv_color_hex(nextColor), 0);
   setText(lblNext, cNext, sizeof cNext, nextLine);
   lv_obj_align(lblNext, LV_ALIGN_CENTER, 0, 64);
+
+  // "28°C Partly cloudy", in a colour that hints at the weather; empty (hidden) when off or out of date
+  char w[40] = "";
+  uint32_t wc = 0x9AA0A6;
+  if (s.timeValid && weatherFresh(s.wx, s.now)) {
+    snprintf(w, sizeof w, "%d" WX_DEG "%c %s", (int)s.wx.temp, s.wx.unit, weatherWords(s.wx.code, s.wx.isDay));
+    wc = weatherColor(s.wx.code, s.wx.isDay);
+  }
+  lv_obj_set_style_text_color(lblWx, lv_color_hex(wc), 0);
+  setText(lblWx, cWx, sizeof cWx, w);
+  lv_obj_align(lblWx, LV_ALIGN_CENTER, 0, -66);
 }
 
 // ------------------------------------------------------------------ shortcuts

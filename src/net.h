@@ -10,4 +10,5 @@ void netPostToast(const char* text, bool error = false);
 void netApplyTime();                                    // (re)configure timezone + NTP
 void netRequestReboot();                                // reboot shortly, after the HTTP reply is sent
 void netRequestCalendar();                              // fetch the calendar at the next opportunity
+void netRequestWeather();                               // fetch the weather at the next opportunity
 bool netApActive();

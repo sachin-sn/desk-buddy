@@ -1,41 +1,21 @@
 #include "calendar.h"
-#include <WiFiClientSecure.h>
-#include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <time.h>
 #include "settings.h"
-
-#ifndef BUDDY_TLS_INSECURE
-// Certificate bundle embedded in the Arduino-ESP32 core (Mozilla roots). If your build lacks it,
-// the link step fails on this symbol: add -DBUDDY_TLS_INSECURE to build_flags (see README).
-extern const uint8_t rootca_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
-#endif
+#include "tls.h"
 
 bool calendarFetch(Agenda& out, String& err) {
   if (gCfg.calUrl.isEmpty()) { err = "no calendar URL"; return false; }
 
   WiFiClientSecure client;
-#ifdef BUDDY_TLS_INSECURE
-  client.setInsecure();
-#else
-  client.setCACertBundle(rootca_crt_bundle_start);
-#endif
+  tlsConfigure(client);
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);   // Apps Script answers with a 302 to googleusercontent.com
   http.setTimeout(12000);
   if (!http.begin(client, gCfg.calUrl)) { err = "bad URL"; return false; }
   int code = http.GET();
   if (code != 200) {
-    if (code > 0) {
-      err = String("HTTP ") + code;
-    } else {
-      // -1 alone says nothing; the TLS layer knows whether it was the certificate, memory or the network
-      char tls[48] = "";
-      int le = client.lastError(tls, sizeof tls);
-      err = String("connect failed: ") + HTTPClient::errorToString(code);
-      if (le) err += String(" / tls ") + tls;
-      err += String(" / free ") + (ESP.getMaxAllocHeap() / 1024) + "K";
-    }
+    err = code > 0 ? String("HTTP ") + code : connectFailText(code, client);
     http.end();
     return false;
   }
