@@ -152,15 +152,46 @@ static void handleCmd(const NetCmd& c) {
   }
 }
 
+// ------------------------------------------------------------------ serial diagnostics
+static const char* resetWhy() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:  return "power-on";
+    case ESP_RST_SW:       return "software restart";
+    case ESP_RST_PANIC:    return "CRASH (panic)";
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:      return "watchdog";
+    case ESP_RST_BROWNOUT: return "BROWNOUT (power dip)";
+    case ESP_RST_DEEPSLEEP:return "deep sleep";
+    default:               return "other";
+  }
+}
+
+// One line every 10 s, so opening the serial monitor at any moment shows where things stand.
+static void diagLine() {
+  char wifi[96];
+  if (apActive)                          snprintf(wifi, sizeof wifi, "setup AP 'CrowPanel-Buddy' pass %s ip %s", apPin, WiFi.softAPIP().toString().c_str());
+  else if (WiFi.status() == WL_CONNECTED) snprintf(wifi, sizeof wifi, "joined '%s' ip %s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+  else                                   snprintf(wifi, sizeof wifi, "not connected");
+  Serial.printf("[buddy] up %lus | last reset: %s | wifi: %s | ble: %s | heap %u psram %u\n",
+                (unsigned long)(millis() / 1000), resetWhy(), wifi,
+                !gCfg.bleHid ? "off in settings" : hidConnected() ? "connected" : "started, waiting for a Mac",
+                (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
+}
+
 // ------------------------------------------------------------------ task
 void netTask(void*) {
+  Serial.println("[net] task started");
   wifiBoot();
+  Serial.println("[net] wifi up");
   webInit();
   if (WiFi.status() == WL_CONNECTED) onConnected();
   if (gCfg.bleHid) hidBegin();
+  Serial.println("[net] web server and bluetooth started");
+  diagLine();
 
   bool wasConn = WiFi.status() == WL_CONNECTED;
-  uint32_t tStatus = 0;
+  uint32_t tStatus = 0, tDiag = millis();
 
   for (;;) {
     webLoop();
@@ -178,6 +209,7 @@ void netTask(void*) {
       pollCalendar(now);
       updateStatus();
     }
+    if (now - tDiag > 10000) { tDiag = now; diagLine(); }
 
     if (rebootAt && now > rebootAt) ESP.restart();
     vTaskDelay(pdMS_TO_TICKS(2));
