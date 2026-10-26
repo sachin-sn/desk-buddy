@@ -47,6 +47,8 @@ System Settings -> Bluetooth -> **CrowPanel Buddy** -> Connect. macOS may open *
 
 On the buddy's status screen the Bluetooth line reads `BT pair` until a Mac connects, `BT ok` once connected, and `BT off` only if you switched the keyboard off in Settings.
 
+The pairing is remembered, so after a power cycle the Mac should reconnect by itself within a few seconds. If you paired with an older firmware, remove *CrowPanel Buddy* from System Settings -> Bluetooth **once** after flashing this one and pair again; the Mac still holds a key from the old settings that the buddy no longer accepts.
+
 ### 4. Mac helper (launch apps, notifications, CPU for the buddy's mood)
 
 Only needed for **Mac action** buttons (the default *Dev* page has Code, Term and Web) and notifications.
@@ -181,6 +183,7 @@ Verified in a Linux sandbox:
 
 - **Something is not working and you want to know why** - open the **Logs** tab in the web editor (`http://buddy.local`). It lists the last 48 events with the reason for each failure: WiFi disconnects, Bluetooth connects, calendar errors (including the TLS reason), Mac-helper problems and restarts. **Copy** puts it on the clipboard to paste into a bug report. If the buddy is not reachable at all, `pio device monitor` prints the same lines. Passwords, tokens and shortcut text are never logged.
 - **`buddy.local` does not open** - long-press the knob to see the IP address and use that. Make sure the Mac is on the same 2.4 GHz network (guest networks often isolate devices).
+- **The Mac has to forget and re-pair the buddy after every power cycle** - open the Logs tab after a reboot and read the line `bluetooth: keyboard 'CrowPanel Buddy' started, paired Macs: N`. `N` of 1 or more means the buddy kept the pairing and the problem is on the connection; `0` means it lost it, and a `bluetooth: pairing failed (reason 0x..)` line right after the Mac tries tells which step the Mac was refused at. After a successful pairing the log shows `bluetooth: a Mac paired, paired Macs now: 1`. Please send those lines if it still happens.
 - **"Pair Bluetooth first"** - the Mac is not connected to *CrowPanel Buddy*. If it is paired but shortcuts do nothing, remove the device in System Settings -> Bluetooth and pair again.
 - **Calendar or weather says `tls SSL - Memory allocation failed`** - the secure connection needs about 50 KB of memory in one piece, and the Arduino core's mbedTLS insists on internal RAM, which WiFi, Bluetooth and the display leave fragmented. The firmware therefore points mbedTLS at the 8 MB PSRAM (the Logs tab shows `tls: handshake memory comes from PSRAM` after the first fetch). If a fetch still fails right after that change, add `-DBUDDY_TLS_INTERNAL_RAM` to `build_flags` to go back to internal RAM, and send the Logs tab.
 - **"Mac helper offline"** - check `tail -f ~/Library/Logs/DeskBuddyHelper.log`; confirm the address in the web editor and that the token in `helper/config.json` matches the one shown there.

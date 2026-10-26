@@ -1,9 +1,12 @@
 #include "hid.h"
 #include <Arduino.h>
 #include "keycombo.h"
+#include "log.h"
 
 #ifndef NO_BLE_HID
 #include <BleKeyboard.h>
+#include <BLEDevice.h>
+#include <esp_gap_ble_api.h>
 
 // keycombo.h uses its own copy of the library's key numbers so it can be tested on a PC.
 // These asserts break the build if the library ever disagrees.
@@ -16,10 +19,45 @@ static_assert(KC_F1 == KEY_F1 && KC_F1 + 11 == KEY_F12 && KC_F13 == KEY_F13 && K
 
 static BleKeyboard* kb = nullptr;
 
+// Pairing rules. The keyboard library asks for "secure connections + MITM + bonding" and sets nothing else.
+// MITM protection needs a way to confirm a code (a screen, a keypad); the buddy has neither, so the pairing
+// ends up as an unauthenticated one and a Mac that comes back after a power cycle can be refused for not
+// having a key of the strength that was asked for. The result is the symptom "forget the device and pair
+// again after every power cycle". These are the settings Espressif's own HID keyboard example uses for a
+// device without input or output: plain bonding, "just works", and an encryption key plus an identity key
+// handed over in both directions so the Mac recognises the buddy again. Must run after BLEDevice::init
+// (inside kb->begin()), which is why it is not part of the constructor.
+static void hidSecurity() {
+  esp_ble_auth_req_t auth    = ESP_LE_AUTH_BOND;
+  esp_ble_io_cap_t   iocap   = ESP_IO_CAP_NONE;
+  uint8_t            keySize = 16;
+  uint8_t            keys    = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
+  esp_err_t rc = ESP_OK;
+  rc |= esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth,    sizeof auth);
+  rc |= esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE,      &iocap,   sizeof iocap);
+  rc |= esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE,    &keySize, sizeof keySize);
+  rc |= esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY,    &keys,    sizeof keys);
+  rc |= esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY,     &keys,    sizeof keys);
+  logEvent("bluetooth: pairing set to plain bonding, no passcode%s", rc == ESP_OK ? "" : " (some settings were refused)");
+}
+
+// Logs how each pairing attempt ended, so the Logs tab shows whether a Mac got paired and kept. Runs on the
+// Bluetooth stack's own task: only logs (logEvent is safe from any task), and never prints the Mac's address.
+static void hidGapEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* p) {
+  if (event != ESP_GAP_BLE_AUTH_CMPL_EVT) return;
+  if (p->ble_security.auth_cmpl.success)
+    logEvent("bluetooth: a Mac paired, paired Macs now: %d", (int)esp_ble_get_bond_device_num());
+  else
+    logEvent("bluetooth: pairing failed (reason 0x%02X): forget 'CrowPanel Buddy' on the Mac and pair again",
+             (unsigned)p->ble_security.auth_cmpl.fail_reason);
+}
+
 void hidBegin() {
   if (kb) return;
   kb = new BleKeyboard("CrowPanel Buddy", "Elecrow", 100);
   kb->begin();
+  hidSecurity();
+  BLEDevice::setCustomGapHandler(hidGapEvent);
 }
 
 bool hidConnected() { return kb && kb->isConnected(); }
