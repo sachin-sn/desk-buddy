@@ -116,7 +116,7 @@ Updating from older firmware keeps your existing network as the first entry. The
 | **Buddy** (standby) | swipe from any screen, or wait | tap -> clock; long touch -> settings | turn: eyes look left/right; press -> clock; long press -> settings |
 | **Clock** | tap the buddy | tap -> back to buddy | turn: brightness |
 | **Shortcuts** | swipe left from the clock | tap a button to fire it | turn: next/previous page; press: back to buddy |
-| **Timer** | swipe left again | tap or knob press: start / pause; swipe up/down: next preset | turn: set the time (when stopped); long press: reset |
+| **Timer** | swipe left again | tap or knob press: start / pause; swipe up/down: next preset | turn: set the time (when stopped); long press (knob or touch): reset; long touch with nothing to reset opens settings |
 | **Agenda** | swipe left again | tap: refresh | - |
 | **Weather** (once switched on) | swipe left again | tap: refresh | - |
 | **Settings** | long press | tap: close | turn: brightness |

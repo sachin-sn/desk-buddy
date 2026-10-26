@@ -473,7 +473,12 @@ static void onInput(const InputEvent& ev) {
         case IN_SWIPE_D:
           if (cd.state() == Countdown::IDLE) selectPreset(presetIdx + (ev.type == IN_SWIPE_U ? 1 : -1));
           break;
-        case IN_LONG_TOUCH: openSettings(); break;
+        case IN_LONG_TOUCH:
+          // Touch has no other way to reset, so a long touch resets a timer that is running, paused or finished.
+          // With nothing to reset it opens settings like on every other screen.
+          if (cd.state() != Countdown::IDLE) { cd.reset(); saveTimer(now); }
+          else openSettings();
+          break;
         default: break;
       }
       break;
