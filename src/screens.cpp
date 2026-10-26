@@ -20,7 +20,7 @@ static lv_obj_t* newScreen(uint32_t bg = 0x000000) {
   return s;
 }
 
-static lv_obj_t* newLabel(lv_obj_t* parent, const lv_font_t* f, uint32_t color) {
+lv_obj_t* newLabel(lv_obj_t* parent, const lv_font_t* f, uint32_t color) {
   lv_obj_t* l = lv_label_create(parent);
   lv_obj_set_style_text_font(l, f, 0);
   lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
@@ -29,7 +29,7 @@ static lv_obj_t* newLabel(lv_obj_t* parent, const lv_font_t* f, uint32_t color) 
   return l;
 }
 
-static lv_obj_t* newRing(lv_obj_t* parent, int r, int w, uint32_t color, uint32_t track, int range) {
+lv_obj_t* newRing(lv_obj_t* parent, int r, int w, uint32_t color, uint32_t track, int range) {
   lv_obj_t* a = lv_arc_create(parent);
   lv_obj_set_size(a, r * 2, r * 2);
   lv_obj_center(a);
@@ -55,51 +55,10 @@ static void setText(lv_obj_t* l, char* cache, size_t n, const char* text) {
 }
 
 // ------------------------------------------------------------------ clock
-static lv_obj_t *arcSec, *lblTime, *lblDate, *lblNext, *lblWx;
-static char cTime[8], cDate[20], cNext[40], cWx[40];
-
+// The faces live in faces.cpp; this screen is just their black canvas.
 static void buildClock() {
   scrClock = newScreen();
-  arcSec = newRing(scrClock, 114, 5, 0x00D1FF, 0x14181C, 60);
-  lblTime = newLabel(scrClock, &lv_font_montserrat_48, 0xFFFFFF);
-  lv_obj_align(lblTime, LV_ALIGN_CENTER, 0, -14);
-  lblDate = newLabel(scrClock, &lv_font_montserrat_20, 0x9AA0A6);
-  lv_obj_align(lblDate, LV_ALIGN_CENTER, 0, 30);
-  lblNext = newLabel(scrClock, &lv_font_montserrat_14, 0x00D1FF);
-  lv_label_set_long_mode(lblNext, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(lblNext, 170);
-  lv_obj_align(lblNext, LV_ALIGN_CENTER, 0, 64);
-  lblWx = newLabel(scrClock, &lv_font_montserrat_14, 0x9AA0A6);          // weather, above the time
-  lv_label_set_long_mode(lblWx, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(lblWx, 160);
-  lv_obj_set_style_text_align(lblWx, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lblWx, LV_ALIGN_CENTER, 0, -66);
-}
-
-void clockRefresh(const Snapshot& s, const char* nextLine, uint32_t nextColor) {
-  char b[24];
-  if (s.timeValid) strftime(b, sizeof b, "%H:%M", &s.t); else snprintf(b, sizeof b, "--:--");
-  setText(lblTime, cTime, sizeof cTime, b);
-  lv_obj_align(lblTime, LV_ALIGN_CENTER, 0, -14);
-  if (s.timeValid) strftime(b, sizeof b, "%a %d %b", &s.t); else snprintf(b, sizeof b, "waiting for time");
-  setText(lblDate, cDate, sizeof cDate, b);
-  lv_obj_align(lblDate, LV_ALIGN_CENTER, 0, 30);
-  int sec = s.timeValid ? s.t.tm_sec : 0;
-  if (lv_arc_get_value(arcSec) != sec) lv_arc_set_value(arcSec, sec);
-  lv_obj_set_style_text_color(lblNext, lv_color_hex(nextColor), 0);
-  setText(lblNext, cNext, sizeof cNext, nextLine);
-  lv_obj_align(lblNext, LV_ALIGN_CENTER, 0, 64);
-
-  // "28°C Partly cloudy", in a colour that hints at the weather; empty (hidden) when off or out of date
-  char w[40] = "";
-  uint32_t wc = 0x9AA0A6;
-  if (s.timeValid && weatherFresh(s.wx, s.now)) {
-    snprintf(w, sizeof w, "%d" WX_DEG "%c %s", (int)s.wx.temp, s.wx.unit, weatherWords(s.wx.code, s.wx.isDay));
-    wc = weatherColor(s.wx.code, s.wx.isDay);
-  }
-  lv_obj_set_style_text_color(lblWx, lv_color_hex(wc), 0);
-  setText(lblWx, cWx, sizeof cWx, w);
-  lv_obj_align(lblWx, LV_ALIGN_CENTER, 0, -66);
+  facesInit(scrClock);
 }
 
 // ------------------------------------------------------------------ shortcuts

@@ -149,10 +149,12 @@ src/            firmware (C++, Arduino framework)
   ui.cpp          modes, input, alerts, LEDs     (core 1, never blocks)
   net.cpp web.cpp WiFi, setup portal, web API    (core 0)
   calendar.cpp helper_client.cpp hid.cpp         calendar fetch, Mac helper client, BLE keyboard
+  faces.cpp       the six clock faces            faceids.h facegeom.h photo.h (pure)   photostore.cpp  the saved photo
 data/www/       web editor (plain HTML/JS/CSS, served from flash)
 helper/         Mac helper (Node, no dependencies) + LaunchAgent installer
 google/         Apps Script calendar proxy
 test/host/      unit tests for the pure logic + eye renderer (g++ only)
+tools/lvhost/   renders the real LVGL clock faces on a PC (thumbnails, screenshots)
 tools/          backlog tooling (GitHub issues)
 docs/           DESIGN.md, POWER.md, BACKLOG.md, CHANGES_FROM_CLOCK.md
 ```
@@ -160,7 +162,7 @@ docs/           DESIGN.md, POWER.md, BACKLOG.md, CHANGES_FROM_CLOCK.md
 ## Tests
 
 ```sh
-make -C test/host test              # C++ logic: countdown, agenda, shortcuts, eyes, default layout, log buffer, weather, weather icons, WiFi list
+make -C test/host test              # C++ logic: countdown, agenda, shortcuts, eyes, default layout, log buffer, weather, weather icons, WiFi list, clock-face geometry and photo format
 make -C test/host render            # renders test/host/out/eyes_sheet.png (needs Pillow)
 (cd helper && npm test)             # Mac helper
 (cd google && node --test test/*.test.js)   # calendar script against a fake CalendarApp
@@ -174,10 +176,11 @@ The same checks, plus a full `pio run`, run in GitHub Actions (`.github/workflow
 Verified in a Linux sandbox:
 - all pure logic (countdown, agenda alerts, shortcut parser, eye engine, default layout, log buffer, weather words and URL, weather icons, saved WiFi networks) by host tests built as C++11, the standard the ESP32 core uses
 - every firmware source file compiles with the real ESP32-S3 GCC 12.2 against Arduino-ESP32 2.0.17 and the pinned libraries with `-Wall -Wextra`, no warnings; every function the sources call is defined (not linked into an image)
+- the clock faces drawn by the real LVGL on a PC (screenshots checked by eye), the face geometry and photo file format by host tests
 - the web editor in headless Chromium against a simulated device (editing, validation, saving, test buttons, phone width)
 - the Mac helper (18 tests, plus an end-to-end run with a fake buddy) and the calendar script (11 tests)
 
-**Not verified** (needs your hardware, Mac or Google account): the display, touch, knob, LEDs and backlight; WiFi, mDNS and TLS to Google; joining, roaming and switching between several saved WiFi networks; Bluetooth pairing and every shortcut on macOS; `launchctl`, `osascript`, `vm_stat`, `open`, `shortcuts` and the macOS permission prompts; the real Google Calendar API; OTA update; and the PlatformIO build itself. Pin numbers come from the Elecrow wiki. Work through milestone M0 in [docs/BACKLOG.md](docs/BACKLOG.md).
+**Not verified** (needs your hardware, Mac or Google account): the clock faces and photo upload on the real display (frame rate, colours, photo storage), Bluetooth bonding across power cycles, the display, touch, knob, LEDs and backlight; WiFi, mDNS and TLS to Google; joining, roaming and switching between several saved WiFi networks; Bluetooth pairing and every shortcut on macOS; `launchctl`, `osascript`, `vm_stat`, `open`, `shortcuts` and the macOS permission prompts; the real Google Calendar API; OTA update; and the PlatformIO build itself. Pin numbers come from the Elecrow wiki. Work through milestone M0 in [docs/BACKLOG.md](docs/BACKLOG.md).
 
 ## Troubleshooting
 

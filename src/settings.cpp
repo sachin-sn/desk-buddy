@@ -52,6 +52,10 @@ void settingsLoad() {
   gCfg.clockSecs   = prefs.getUChar("cto", 15);
   gCfg.ledOn       = prefs.getBool("led", true);
   gCfg.bleHid      = prefs.getBool("ble", true);
+  gCfg.face        = faceClamp(prefs.getUChar("face", FACE_CLASSIC));
+  gCfg.accent      = prefs.getUInt("accent", ACCENT_DEFAULT) & 0xFFFFFF;
+  if (!accentVisible(gCfg.accent)) gCfg.accent = ACCENT_DEFAULT;
+  gCfg.photoDim    = photoDimClamp(prefs.getUChar("pdim", PHOTO_DIM_DEFAULT));
   gCfg.weatherOn   = prefs.getBool("wx", false);
   gCfg.wLat        = prefs.getFloat("wlat", 0);
   gCfg.wLon        = prefs.getFloat("wlon", 0);
@@ -89,6 +93,9 @@ void settingsSave() {
   prefs.putUChar("cto", gCfg.clockSecs);
   prefs.putBool("led", gCfg.ledOn);
   prefs.putBool("ble", gCfg.bleHid);
+  prefs.putUChar("face", gCfg.face);
+  prefs.putUInt("accent", gCfg.accent);
+  prefs.putUChar("pdim", gCfg.photoDim);
   prefs.putBool("wx", gCfg.weatherOn);
   prefs.putFloat("wlat", gCfg.wLat);
   prefs.putFloat("wlon", gCfg.wLon);

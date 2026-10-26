@@ -126,6 +126,35 @@
 
   <!-- ============================================================ SETTINGS -->
   <section id="tab-settings" class="tab">
+    <div class="card" id="faceCard">
+      <h2>Clock face</h2>
+      <p class="muted">Tap the buddy to open the clock. A face shows up as soon as you pick it &mdash; there is nothing to save.</p>
+      <div id="faceGrid" class="facegrid" role="radiogroup" aria-label="Clock face"></div>
+      <h3>Accent colour</h3>
+      <div class="row">
+        <input id="faceAccent" type="color" aria-label="Accent colour">
+        <div id="faceSwatches" class="swatches"></div>
+      </div>
+      <p class="muted">The seconds ring, second hand, needle and highlights. It has to be bright enough to show on the black screen.</p>
+      <h3>Photo for the Photo face</h3>
+      <p class="muted">One photo, with the time on top. Choose it, drag to move it and zoom until it fills the round screen. It is cropped and shrunk to 240&times;240 here in your browser before it is sent, so the buddy keeps only a small file. Re-uploading the web pages with <code>pio run -t uploadfs</code> erases it.</p>
+      <div class="photorow">
+        <div class="cropwrap" id="cropWrap">
+          <canvas id="cropCv" width="240" height="240" aria-label="Photo crop preview: drag to move"></canvas>
+          <div id="cropDim" class="cropdim"><span>10:08</span></div>
+        </div>
+        <div class="cropctl">
+          <label>Photo<input id="photoFile" type="file" accept="image/*"></label>
+          <label>Zoom<input id="photoZoom" type="range" min="100" max="400" value="100" disabled></label>
+          <label>Darken, so the time stays readable: <output id="oPhotoDim"></output>%<input id="photoDim" type="range" min="0" max="80"></label>
+          <div class="row">
+            <button id="photoUse" type="button" disabled>Use this photo</button>
+            <button id="photoRemove" type="button" class="ghost danger">Remove photo</button>
+          </div>
+          <p id="photoState" class="muted"></p>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <h2>Display &amp; behaviour</h2>
       <div class="grid">

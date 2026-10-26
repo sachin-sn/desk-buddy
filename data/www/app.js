@@ -584,6 +584,236 @@ $('#wfAdd').addEventListener('click', ev => guarded(ev.target, async () => {
   toast(known ? 'Network updated' : 'Network saved - it is at the bottom of the list', 'good');
 }));
 
+// ------------------------------------------------------------------ clock faces + photo (Settings tab)
+// A face is chosen with one request and shows on the buddy at once. The photo is cropped and shrunk to
+// 240x240 here, converted to the screen's own 16-bit colour (RGB565) and uploaded as a small file: the
+// buddy needs no image decoder and never receives a huge or odd file. Format: src/photo.h.
+const SWATCHES = ['#00D1FF', '#FF7A18', '#3DDC84', '#FF4D8D', '#FFD23F', '#A78BFA', '#FF4D4D', '#F2F4F7'];
+const CROP = 240;
+const PHOTO_BYTES = 8 + CROP * CROP * 2;
+const PH = { img: null, w: 0, h: 0, zoom: 1, cx: 0, cy: 0, drag: null, fresh: false };   // fresh: a file was chosen (not the buddy's own photo)
+
+function faceName(id) { const f = (S.cfg.faces || []).find(x => x.id === id); return f ? f.name : 'Clock'; }
+function photoFaceId() { const f = (S.cfg.faces || []).find(x => x.key === 'photo'); return f ? f.id : -1; }
+
+function fillFaces() {
+  const c = S.cfg;
+  $('#faceGrid').replaceChildren(...(c.faces || []).map(f => h('button', {
+    class: 'face' + (f.id === c.face ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': f.id === c.face ? 'true' : 'false',
+    title: f.about, onclick: () => chooseFace(f.id),
+  }, h('img', { src: 'faces/' + f.key + '.png', alt: '', width: 96, height: 96 }), h('span', { text: f.name }))));
+  const acc = (c.accent || '#00D1FF').toUpperCase();
+  $('#faceAccent').value = acc.toLowerCase();
+  $('#faceSwatches').replaceChildren(...SWATCHES.map(col => h('button', {
+    class: 'swatch' + (col === acc ? ' on' : ''), type: 'button', style: 'background:' + col, title: col, 'aria-label': 'Accent ' + col,
+    onclick: () => saveAccent(col),
+  })));
+  $('#photoDim').value = c.photoDim; $('#oPhotoDim').textContent = c.photoDim;
+  $('#cropDim').style.setProperty('--dim', c.photoDim / 100);
+  $('#photoRemove').disabled = !c.hasPhoto;
+}
+
+async function chooseFace(id) {
+  await guarded(null, async () => {
+    await api('/api/settings', { face: id });
+    S.cfg.face = id;
+    fillFaces();
+    const need = id === photoFaceId() && !S.cfg.hasPhoto;
+    toast(faceName(id) + ' face selected - tap the buddy to see it' + (need ? '. Choose a photo below first.' : ''), need ? '' : 'good');
+  });
+}
+
+async function saveAccent(col) {
+  col = col.toUpperCase();
+  await guarded(null, async () => {
+    try { await api('/api/settings', { accent: col }); }
+    catch (e) { fillFaces(); throw e; }                    // put the picker back to the colour the buddy really uses
+    S.cfg.accent = col;
+    fillFaces();
+    toast('Accent colour saved', 'good');
+  });
+}
+$('#faceAccent').addEventListener('change', e => saveAccent(e.target.value));
+
+let dimTimer = 0;
+$('#photoDim').addEventListener('input', e => {
+  const v = +e.target.value;
+  $('#oPhotoDim').textContent = v;
+  $('#cropDim').style.setProperty('--dim', v / 100);
+  clearTimeout(dimTimer);
+  dimTimer = setTimeout(() => guarded(null, async () => { await api('/api/settings', { photoDim: v }); S.cfg.photoDim = v; }), 400);
+});
+
+// ---- the crop box
+function cropRect() {           // the part of the picture that fills the round screen, in picture pixels
+  const base = Math.max(CROP / PH.w, CROP / PH.h);          // at zoom 1 the shorter side just fills the screen
+  const scale = base * PH.zoom;
+  const sw = CROP / scale;
+  const sx = Math.min(Math.max(PH.cx - sw / 2, 0), PH.w - sw);
+  const sy = Math.min(Math.max(PH.cy - sw / 2, 0), PH.h - sw);
+  return { sx, sy, sw, scale };
+}
+function drawCrop(ctx) {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, CROP, CROP);
+  if (!PH.img) return;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  const r = cropRect();
+  ctx.drawImage(PH.img, r.sx, r.sy, r.sw, r.sw, 0, 0, CROP, CROP);
+}
+function redrawCrop() { drawCrop($('#cropCv').getContext('2d')); }
+
+function photoStateText(msg) {
+  $('#photoState').textContent = msg != null ? msg
+    : PH.fresh ? 'Drag the picture to move it, zoom to fill the circle, then press "Use this photo".'
+    : S.cfg.hasPhoto ? 'This is the photo on the buddy.' : 'No photo on the buddy yet - choose one.';
+}
+
+function setPicture(img, w, h, fresh) {
+  PH.img = img; PH.w = w; PH.h = h; PH.zoom = 1; PH.cx = w / 2; PH.cy = h / 2; PH.fresh = fresh;
+  $('#photoZoom').value = 100; $('#photoZoom').disabled = !fresh;
+  $('#photoUse').disabled = !fresh;
+  redrawCrop();
+  photoStateText();
+}
+
+async function openImage(file) {
+  if (typeof createImageBitmap === 'function') {
+    try { const b = await createImageBitmap(file, { imageOrientation: 'from-image' }); return { img: b, w: b.width, h: b.height }; }
+    catch (_) { /* try the old way below */ }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const im = new Image();
+    im.src = url;
+    await im.decode();
+    return { img: im, w: im.naturalWidth, h: im.naturalHeight };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+$('#photoFile').addEventListener('change', async ev => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  try {
+    if (f.size > 60e6) throw new Error('That file is very large - pick one under 60 MB');
+    let { img, w, h } = await openImage(f);
+    if (!w || !h) throw new Error('That picture has no size');
+    const longSide = Math.max(w, h);
+    if (longSide > 1400) {                    // shrink once up front: smoother final result and far less memory
+      const k = 1400 / longSide, c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+      const cx = c.getContext('2d');
+      cx.imageSmoothingQuality = 'high';
+      cx.drawImage(img, 0, 0, c.width, c.height);
+      img = c; w = c.width; h = c.height;
+    }
+    setPicture(img, w, h, true);
+  } catch (e) {
+    toast(/size|large/.test(e.message) ? e.message : 'This browser cannot open that picture. Try a JPEG or PNG.', 'bad');
+  }
+});
+
+$('#photoZoom').addEventListener('input', e => { PH.zoom = e.target.value / 100; redrawCrop(); });
+(() => {                                      // drag to move, wheel to zoom
+  const cv = $('#cropCv');
+  cv.addEventListener('pointerdown', e => {
+    if (!PH.fresh) return;
+    cv.setPointerCapture(e.pointerId);
+    PH.drag = { x: e.clientX, y: e.clientY, cx: PH.cx, cy: PH.cy };
+    cv.style.cursor = 'grabbing';
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!PH.drag) return;
+    const k = CROP / cv.getBoundingClientRect().width, r = cropRect();
+    PH.cx = PH.drag.cx - (e.clientX - PH.drag.x) * k / r.scale;
+    PH.cy = PH.drag.cy - (e.clientY - PH.drag.y) * k / r.scale;
+    redrawCrop();
+  });
+  const end = () => { PH.drag = null; cv.style.cursor = ''; };
+  cv.addEventListener('pointerup', end);
+  cv.addEventListener('pointercancel', end);
+  cv.addEventListener('wheel', e => {
+    if (!PH.fresh) return;
+    e.preventDefault();
+    const z = $('#photoZoom');
+    z.value = Math.min(400, Math.max(100, +z.value - Math.sign(e.deltaY) * 10));
+    z.dispatchEvent(new Event('input'));
+  }, { passive: false });
+})();
+
+// ---- RGB565 file (src/photo.h): "BPH1", 240, 240, then 240*240 little-endian pixels rrrrrggggggbbbbb
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+function pack565(rgba) {
+  const out = new Uint8Array(PHOTO_BYTES);
+  out.set([66, 80, 72, 49, CROP & 255, CROP >> 8, CROP & 255, CROP >> 8]);
+  let o = 8;
+  for (let y = 0; y < CROP; y++) for (let x = 0; x < CROP; x++) {
+    const i = (y * CROP + x) * 4;
+    const t = (BAYER4[(y & 3) * 4 + (x & 3)] + 0.5) / 16 - 0.5;         // ordered dither: smooth skies instead of bands
+    const r = Math.min(31, Math.max(0, Math.floor(rgba[i] * 31 / 255 + 0.5 + t)));
+    const g = Math.min(63, Math.max(0, Math.floor(rgba[i + 1] * 63 / 255 + 0.5 + t)));
+    const b = Math.min(31, Math.max(0, Math.floor(rgba[i + 2] * 31 / 255 + 0.5 + t)));
+    const v = (r << 11) | (g << 5) | b;
+    out[o++] = v & 255; out[o++] = v >> 8;
+  }
+  return out;
+}
+function unpack565(bytes) {                   // the buddy's file -> ImageData, or null if it is not one
+  if (bytes.length !== PHOTO_BYTES || String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) !== 'BPH1') return null;
+  const id = new ImageData(CROP, CROP);
+  for (let n = 0; n < CROP * CROP; n++) {
+    const v = bytes[8 + n * 2] | (bytes[9 + n * 2] << 8);
+    id.data[n * 4] = Math.round((v >> 11) * 255 / 31);
+    id.data[n * 4 + 1] = Math.round(((v >> 5) & 63) * 255 / 63);
+    id.data[n * 4 + 2] = Math.round((v & 31) * 255 / 31);
+    id.data[n * 4 + 3] = 255;
+  }
+  return id;
+}
+
+$('#photoUse').addEventListener('click', async ev => { await guarded(ev.target, async () => {
+  if (!PH.img) return;
+  const c = document.createElement('canvas');
+  c.width = c.height = CROP;
+  const cx = c.getContext('2d', { willReadFrequently: true });
+  drawCrop(cx);
+  const fd = new FormData();
+  fd.append('photo', new Blob([pack565(cx.getImageData(0, 0, CROP, CROP).data)], { type: 'application/octet-stream' }), 'photo.bin');
+  const r = await fetch('/api/photo', { method: 'POST', headers: { 'X-Buddy': '1' }, body: fd, cache: 'no-store' });
+  let j = null;
+  try { j = await r.json(); } catch (_) { /* not JSON */ }
+  if (!r.ok) throw new Error((j && j.error) || `HTTP ${r.status}`);
+  S.cfg = await api('/api/settings');
+  fillFaces();
+  await showDevicePhoto();
+  $('#photoFile').value = '';
+  toast('Photo saved' + (S.cfg.face === photoFaceId() ? ' - tap the buddy to see it' : ' - pick the Photo face to show it'), 'good');
+}); $('#photoUse').disabled = !PH.fresh; });
+
+$('#photoRemove').addEventListener('click', async ev => { await guarded(ev.target, async () => {
+  if (!confirm('Remove the photo from the buddy?')) return;
+  await api('/api/photo/delete', {});
+  S.cfg = await api('/api/settings');
+  fillFaces();
+  setPicture(null, 1, 1, false);
+  $('#photoFile').value = '';
+  toast('Photo removed', 'good');
+}); $('#photoRemove').disabled = !S.cfg.hasPhoto; });
+
+// show the photo that is on the buddy right now in the crop box
+async function showDevicePhoto() {
+  if (!S.cfg.hasPhoto) { setPicture(null, 1, 1, false); return; }
+  const r = await fetch('/api/photo', { cache: 'no-store' });
+  if (!r.ok) { setPicture(null, 1, 1, false); return; }
+  const id = unpack565(new Uint8Array(await r.arrayBuffer()));
+  if (!id) { setPicture(null, 1, 1, false); return; }
+  const c = document.createElement('canvas');
+  c.width = c.height = CROP;
+  c.getContext('2d').putImageData(id, 0, 0);
+  setPicture(c, CROP, CROP, false);
+}
+
 function fillSettings() {
   const c = S.cfg;
   $('#sBright').value = c.bright; $('#oBright').textContent = c.bright;
@@ -595,6 +825,7 @@ function fillSettings() {
   $('#sHost').value = c.host;
   $('#helperHost').value = c.helperHost || ''; $('#helperPort').value = c.helperPort;
   fillWeather();
+  fillFaces();
   $('#calUrl').placeholder = c.calSet ? 'saved (hidden) - paste a new URL to replace it' : 'https://script.google.com/macros/s/…/exec?t=…';
 }
 
@@ -710,6 +941,7 @@ $$('#tabs button').forEach(b => b.addEventListener('click', () => showTab(b.data
   try {
     [S.status, S.cfg] = await Promise.all([api('/api/status'), api('/api/settings')]);
     fillSettings();
+    showDevicePhoto().catch(() => { /* the crop box just stays empty */ });
     renderStatus();
     loadWifi().catch(e => toast('WiFi list: ' + e.message, 'bad'));
     await loadLayout();

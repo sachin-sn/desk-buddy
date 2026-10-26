@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "faceids.h"
 #include "wifilist.h"
 
 // Persistent settings (NVS). Strings are only touched from core 0; the single-byte
@@ -20,6 +21,10 @@ struct Settings {
   uint8_t clockSecs   = 15;      // clock screen returns to the buddy after this many seconds
   bool    ledOn       = true;    // WS2812 ring
   bool    bleHid      = true;
+
+  uint8_t  face       = FACE_CLASSIC;    // clock face, see faceids.h
+  uint32_t accent     = ACCENT_DEFAULT;  // 0xRRGGBB highlight colour of the faces
+  uint8_t  photoDim   = PHOTO_DIM_DEFAULT;   // percent the Photo face darkens the picture
 
   bool    weatherOn   = false;   // show the weather on the clock and the weather screen
   float   wLat        = 0;       // chosen in the web editor (city search)

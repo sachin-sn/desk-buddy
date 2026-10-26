@@ -142,6 +142,19 @@
     },
 
     {
+      "id": "M0-12", "milestone": "M0 Bring-up on hardware", "labels": ["hardware", "firmware", "web-ui"],
+      "title": "Check the clock faces and photo on the real display",
+      "files": ["src/faces.cpp", "src/photostore.cpp", "data/www/app.js"],
+      "body": "The six clock faces were drawn with the real LVGL on a PC and compile for the ESP32-S3, but never ran on the board. Look at each face, the 30 fps clock loop, the photo upload from a phone and a laptop, and that a photo survives a reboot.",
+      "acceptance": [
+        "Every face looks right on the round screen and the seconds move smoothly",
+        "Choosing a face and accent in the web editor changes the clock without a reboot",
+        "A photo uploads, shows on the Photo face, and is still there after a power cycle",
+        "No visible tearing, and the buddy and swipes still feel responsive while the clock runs"
+      ]
+    },
+
+    {
       "id": "M1-01", "milestone": "M1 macOS daily driver", "labels": ["macos", "firmware", "web-ui"],
       "title": "Tune the default shortcut pages to your own apps",
       "files": ["src/layout.cpp", "helper/actions.example.json", "data/www/app.js"],

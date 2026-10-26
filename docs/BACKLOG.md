@@ -21,6 +21,7 @@ Nothing in this repository has run on a real board yet, so milestone M0 is the r
 | M0-09 | Timer survives a power cut | firmware |
 | M0-10 | OTA firmware update from the web page | firmware, web-ui |
 | M0-11 | First CI run on GitHub | ci |
+| M0-12 | Check the clock faces and photo on the real display | hardware, firmware, web-ui |
 | M1-01 | Tune the default shortcut pages to your own apps | macos, firmware, web-ui |
 | M1-02 | Mirror meeting alerts to macOS notifications | mac-helper, firmware |
 | M1-03 | One-tap 'join meeting' | calendar, mac-helper, firmware |
@@ -224,6 +225,23 @@ Files:
 Done when:
 - [ ] All four jobs are green on the first push, or the failures are fixed
 - [ ] Add a status badge to README.md
+
+### M0-12 - Check the clock faces and photo on the real display
+
+Labels: `hardware` `firmware` `web-ui`
+
+The six clock faces were drawn with the real LVGL on a PC and compile for the ESP32-S3, but never ran on the board. Look at each face, the 30 fps clock loop, the photo upload from a phone and a laptop, and that a photo survives a reboot.
+
+Files:
+- `src/faces.cpp`
+- `src/photostore.cpp`
+- `data/www/app.js`
+
+Done when:
+- [ ] Every face looks right on the round screen and the seconds move smoothly
+- [ ] Choosing a face and accent in the web editor changes the clock without a reboot
+- [ ] A photo uploads, shows on the Photo face, and is still there after a power cycle
+- [ ] No visible tearing, and the buddy and swipes still feel responsive while the clock runs
 
 ## M1 macOS daily driver
 

@@ -123,11 +123,33 @@ static void nextMeetingText(char* out, size_t n, uint32_t& color, int titleChars
   snprintf(out, n, "%.*s%s%s", titleChars, e.title, sep, rel);
 }
 
+// One frame of the clock face. The faces animate (gliding hands, rolling digits), so while the clock is
+// showing this runs about 30 times a second with a freshly read time, not just with the 10 Hz snapshot.
+static void clockFrame(uint32_t now) {
+  time_t t = time(nullptr);
+  snap.now = (uint32_t)t;
+  snap.timeValid = t > 1735689600;
+  localtime_r(&t, &snap.t);
+  char next[48];
+  uint32_t col;
+  nextMeetingText(next, sizeof next, col, 18, "  ");
+  ClockView v;
+  v.s = &snap;
+  v.nextLine = next;
+  v.nextColor = col;
+  v.nowMs = now;
+  v.face = gCfg.face;
+  v.accent = gCfg.accent;
+  v.photoDim = gCfg.photoDim;
+  clockRefresh(v);
+}
+
 // ------------------------------------------------------------------ modes
 static void gotoMode(uint8_t m) {
   if (m == MODE_BUDDY && !buddyAvailable()) m = MODE_CLOCK;
   mode = m;
   if (m == MODE_BUDDY) buddyEnter(millis());
+  if (m == MODE_CLOCK) { clockEnter(millis()); clockFrame(millis()); }     // ready before the first draw
   if (m == MODE_SHORTCUTS) shortcutsShow(layout, page);
   lv_scr_load(screenFor(m));
   lv_obj_invalidate(lv_scr_act());
@@ -282,14 +304,9 @@ static void refresh(uint32_t now) {
   else if ((mode == MODE_SHORTCUTS || mode == MODE_TIMER || mode == MODE_AGENDA || mode == MODE_WEATHER) && idle > PAGE_IDLE_MS) gotoMode(MODE_BUDDY);
   else if (mode == MODE_SETTINGS && idle > SETTINGS_IDLE_MS) closeSettings();
 
+  if (mode != MODE_CLOCK) clockPhotoSync();         // the clock itself runs at 30 fps from uiTask
+
   switch (mode) {
-    case MODE_CLOCK: {
-      char next[48];
-      uint32_t col;
-      nextMeetingText(next, sizeof next, col, 18, "  ");
-      clockRefresh(snap, next, col);
-      break;
-    }
     case MODE_TIMER:    timerRefresh(cd, presetLabel(), nowMs); break;
     case MODE_AGENDA:   agendaRefresh(snap); break;
     case MODE_WEATHER:  weatherRefresh(snap); break;
@@ -514,7 +531,7 @@ void uiInit() {
 }
 
 void uiTask(void*) {
-  uint32_t tRefresh = 0;
+  uint32_t tRefresh = 0, tClock = 0;
   for (;;) {
     UiMsg m;
     while (xQueueReceive(qToUi, &m, 0) == pdTRUE) handleMsg(m);
@@ -524,6 +541,7 @@ void uiTask(void*) {
 
     uint32_t now = millis();
     if (now - tRefresh >= 100) { tRefresh = now; refresh(now); }
+    if (mode == MODE_CLOCK && now - tClock >= 33) { tClock = now; clockFrame(now); }
 
     if (mode == MODE_BUDDY) {
       buddyTick(now);

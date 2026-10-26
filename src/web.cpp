@@ -7,12 +7,14 @@
 #include <esp_system.h>
 #include <new>
 #include <time.h>
+#include "faceids.h"
 #include "helper_client.h"
 #include "hid.h"
 #include "keycombo.h"
 #include "layout.h"
 #include "log.h"
 #include "net.h"
+#include "photostore.h"
 #include "settings.h"
 #include "setup_page.h"
 #include "state.h"
@@ -206,6 +208,23 @@ static void handleSettingsGet() {
   d["clockSecs"] = gCfg.clockSecs;
   d["ledOn"] = gCfg.ledOn;
   d["bleHid"] = gCfg.bleHid;
+  d["face"] = gCfg.face;
+  {
+    char ac[8];
+    colorFormat(gCfg.accent, ac);
+    d["accent"] = ac;
+  }
+  d["photoDim"] = gCfg.photoDim;
+  d["hasPhoto"] = photoPresent();
+  d["photoVer"] = photoCurrent().ver;
+  JsonArray faces = d["faces"].to<JsonArray>();               // the web editor builds its picker from this list
+  for (int i = 0; i < FACE_COUNT; i++) {
+    JsonObject o = faces.add<JsonObject>();
+    o["id"] = i;
+    o["key"] = faceKey(i);
+    o["name"] = faceTitle(i);
+    o["about"] = faceBlurb(i);
+  }
   d["calSet"] = !gCfg.calUrl.isEmpty();          // the URL carries a secret, so it is never sent back
   d["helperHost"] = gCfg.helperHost;
   d["helperPort"] = gCfg.helperPort;
@@ -311,6 +330,14 @@ static void handleSettingsPost() {
       return sendErr(400, "weather unit must be C or F");
     if (d["wPlace"].is<const char*>() && d["wPlace"].as<String>().length() > 60) return sendErr(400, "place name is too long");
   }
+  if (d["face"].is<int>() && !faceIdOk(d["face"].as<int>())) return sendErr(400, "unknown clock face");
+  if (d["accent"].is<const char*>()) {
+    uint32_t ac;
+    if (!colorParse(d["accent"].as<const char*>(), ac)) return sendErr(400, "colour must look like #00D1FF");
+    if (!accentVisible(ac)) return sendErr(400, "choose a brighter colour: dark ones disappear on the black screen");
+  }
+  if (d["photoDim"].is<int>() && (d["photoDim"].as<int>() < 0 || d["photoDim"].as<int>() > PHOTO_DIM_MAX))
+    return sendErr(400, "photo darkening must be 0 to 80 percent");
   if (d["helperHost"].is<const char*>() && !helperHostOk(d["helperHost"].as<String>()))
     return sendErr(400, "Mac address: use a private IP (192.168.x.x) or a name ending in .local");
   if (d["helperPort"].is<int>() && (d["helperPort"].as<int>() < 1 || d["helperPort"].as<int>() > 65535)) return sendErr(400, "port out of range");
@@ -338,11 +365,16 @@ static void handleSettingsPost() {
   if (d["leadMin"].is<int>())     gCfg.leadMin     = (uint8_t)constrain(d["leadMin"].as<int>(), 0, 60);
   if (d["clockSecs"].is<int>())   gCfg.clockSecs   = (uint8_t)constrain(d["clockSecs"].as<int>(), 3, 120);
   if (d["ledOn"].is<bool>())      gCfg.ledOn = d["ledOn"].as<bool>();
+  bool faceChanged = false;
+  if (d["face"].is<int>() && gCfg.face != d["face"].as<int>()) { gCfg.face = (uint8_t)d["face"].as<int>(); faceChanged = true; }
+  if (d["accent"].is<const char*>()) { uint32_t ac; colorParse(d["accent"].as<const char*>(), ac); gCfg.accent = ac; }
+  if (d["photoDim"].is<int>())    gCfg.photoDim = photoDimClamp(d["photoDim"].as<int>());
   if (d["bleHid"].is<bool>() && gCfg.bleHid != d["bleHid"].as<bool>()) { gCfg.bleHid = d["bleHid"].as<bool>(); reboot = true; }
   if (d["newAdmin"].is<const char*>()) gCfg.adminPass = d["newAdmin"].as<String>();
   if (d["regenToken"].is<bool>() && d["regenToken"].as<bool>()) gCfg.apiToken = newToken();
 
   settingsSave();
+  if (faceChanged) logEvent("clock face: %s", faceTitle(gCfg.face));
   logEvent("settings saved%s%s", calChanged ? " (calendar link changed)" : "", reboot ? ", restarting to apply" : "");
   if (tzChanged) netApplyTime();
   if (calChanged) netRequestCalendar();
@@ -427,6 +459,59 @@ static void otaDone() {
   server.send(200, "application/json", "{\"ok\":true}");
   logEvent("firmware update: installed");
   netRequestReboot();
+}
+
+// ------------------------------------------------------------------ photo for the Photo clock face
+// POST /api/photo takes the 240x240 RGB565 file the web editor builds (see photo.h) as a multipart upload,
+// the same way the firmware update does, and authenticates before anything is stored.
+static bool   photoAuth = false;
+static String photoErr;
+
+static void photoChunk() {
+  HTTPUpload& up = server.upload();
+  if (up.status == UPLOAD_FILE_START) {
+    photoErr = "";
+    photoAuth = uploadAuthOk();
+    if (!photoAuth) return;
+    if (!photoUploadBegin(photoErr)) photoAuth = false;
+  } else if (up.status == UPLOAD_FILE_WRITE) {
+    if (photoAuth) photoUploadWrite(up.buf, up.currentSize);
+  } else if (up.status == UPLOAD_FILE_END) {
+    if (photoAuth && !photoUploadEnd(photoErr)) photoAuth = false;
+  } else if (up.status == UPLOAD_FILE_ABORTED) {
+    if (photoAuth) photoUploadAbort();
+    photoAuth = false;
+  }
+}
+
+static void photoDone() {
+  bool ok = photoAuth;
+  photoAuth = false;                                // never let a stale flag authorise a later request
+  if (!ok) {
+    if (!photoErr.isEmpty()) return sendErr(400, photoErr);
+    return (void)requireAuth();
+  }
+  JsonDocument r;
+  r["ok"] = true;
+  r["photoVer"] = photoCurrent().ver;
+  sendJson(r);
+}
+
+// GET /api/photo: the saved file, so the editor can show what the buddy shows.
+static void handlePhotoGet() {
+  if (!requireAuth()) return;
+  if (!LittleFS.exists(PHOTO_PATH)) return sendErr(404, "no photo saved");
+  File f = LittleFS.open(PHOTO_PATH, "r");
+  if (!f) return sendErr(500, "could not read the photo");
+  server.sendHeader("Cache-Control", "no-store");
+  server.streamFile(f, "application/octet-stream");
+  f.close();
+}
+
+static void handlePhotoDelete() {
+  if (!requireAuth()) return;
+  photoRemove();
+  sendOk();
 }
 
 // ------------------------------------------------------------------ WiFi networks
@@ -594,6 +679,9 @@ void webInit() {
   server.on("/api/calendar/refresh", HTTP_POST, []() { if (!requireAuth()) return; netRequestCalendar(); sendOk(); });
   server.on("/api/reboot", HTTP_POST, []() { if (!requireAuth()) return; sendOk(); netRequestReboot(); });
   server.on("/update", HTTP_POST, otaDone, otaChunk);
+  server.on("/api/photo", HTTP_GET, handlePhotoGet);
+  server.on("/api/photo", HTTP_POST, photoDone, photoChunk);
+  server.on("/api/photo/delete", HTTP_POST, handlePhotoDelete);
 
   server.onNotFound([]() {
     if (netApActive()) {                       // captive-portal redirect

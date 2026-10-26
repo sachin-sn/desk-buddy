@@ -1,4 +1,5 @@
 #include "net.h"
+#include "photostore.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <DNSServer.h>
@@ -388,6 +389,7 @@ static void diagLine() {
 
 // ------------------------------------------------------------------ task
 void netTask(void*) {
+  photoInit();                          // the Photo clock face's picture, from flash into PSRAM
   wifiBoot();
   webInit();
   if (WiFi.status() == WL_CONNECTED) onConnected();

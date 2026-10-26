@@ -27,7 +27,23 @@ struct Snapshot {
 void      screensBuild();
 lv_obj_t* screenFor(uint8_t mode);
 
-void clockRefresh(const Snapshot& s, const char* nextLine, uint32_t nextColor);
+lv_obj_t* newLabel(lv_obj_t* parent, const lv_font_t* f, uint32_t color);
+lv_obj_t* newRing(lv_obj_t* parent, int r, int w, uint32_t color, uint32_t track, int range);
+
+// ---- faces.cpp: the clock screen's faces (see faceids.h)
+struct ClockView {
+  const Snapshot* s;
+  const char*     nextLine;     // "Standup  in 12m" or empty
+  uint32_t        nextColor;
+  uint32_t        nowMs;        // millis(): drives the animations
+  uint8_t         face;         // FaceId
+  uint32_t        accent;       // 0xRRGGBB
+  uint8_t         photoDim;     // percent
+};
+void facesInit(lv_obj_t* clockScreen);     // once, from screens.cpp
+void clockRefresh(const ClockView& v);     // ~30 times a second while the clock is showing
+void clockEnter(uint32_t nowMs);           // the clock screen is about to be shown (restarts entry animations)
+void clockPhotoSync();                     // while another screen shows: tell the photo store the old buffer is free
 
 void shortcutsShow(const Layout* lay, int page);        // (re)fills the six buttons for a page
 int  shortcutsHit(int x, int y);                        // slot under a touch point, or -1

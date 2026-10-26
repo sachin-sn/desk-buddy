@@ -44,6 +44,12 @@ Known weak spot: calendar fetches and Mac name lookups block core 0 for up to a 
 
 `chooseMood()` picks the mood, in priority order: meeting within 10 minutes -> surprised; sleep window (default 23:00-07:00) -> asleep; Mac CPU >= 85% -> grumpy; just touched -> happy; idle 45+ minutes late in the evening -> tired; else normal. Night: dim backlight, LEDs off.
 
+### Clock faces
+
+`faces.cpp` builds one face at a time inside a transparent root on the clock screen (six faces, a build/update pair each); changing the face or accent rebuilds it. `uiTask` calls `clockFrame()` every 33 ms while the clock shows (the rest of the UI stays at 100 ms). Hand faces use one full-screen dial object with a draw callback and invalidate only the boxes the hands moved through, because `lv_line` invalidates a large area. The roll face animates by hand per frame. The numbers (angles, tacho sweep, roll easing) are in the pure `facegeom.h`; names, accent rules and dimming in `faceids.h`; the file format in `photo.h`.
+
+The photo is `/photo.bin` in LittleFS: 8-byte header (`BPH1`, 240, 240) and 240x240 RGB565, made by the browser. `photostore.cpp` writes it atomically (`/photo.tmp` then rename) on core 0 and loads it into one of two PSRAM buffers; the UI reads the current buffer through `photoCurrent()` and calls `photoSeen(ver)` when it has switched, which is when the old buffer may be reused. Core 1 never touches the file system.
+
 ## Shortcuts
 
 A button holds either a `hid` string or a `mac` id (never both).
@@ -74,7 +80,7 @@ The device resolves the Mac with an IPv4 literal or `MDNS.queryHost` (cached for
 | Where | What |
 |---|---|
 | NVS namespace `buddy` | saved WiFi networks (`ws0`-`ws4` names, `wp0`-`wp4` passwords; older firmware kept one under `ssid`/`pass`), admin password, name, time zone, calendar URL, Mac address and port, API token, brightness and sleep settings, layout JSON (`layout`), timer state (`t_st`, `t_dur`, `t_rem`, `t_at`) |
-| `spiffs` partition (LittleFS, ~8 MB) | the web editor in `/www` |
+| `spiffs` partition (LittleFS, ~8 MB) | the web editor in `/www`, the clock photo `/photo.bin` (lost on `uploadfs`) |
 | `app0` / `app1` (4 MB each) | firmware, OTA alternates |
 | `coredump` | crash dumps |
 
