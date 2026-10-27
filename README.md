@@ -109,6 +109,16 @@ The buddy remembers up to **5** WiFi networks. Open **Settings -> WiFi networks*
 
 Updating from older firmware keeps your existing network as the first entry. The settings screen (long-press) shows the name of the network the buddy is on.
 
+### 8. Mac notifications on the buddy (optional)
+
+The helper can show your Mac's notifications on the buddy: the screen turns indigo for 6 seconds with the **sender or title** on top and the **app name** below, and the LEDs pulse. The message text is never sent. Meetings and the timer still take priority, a newer notification replaces an older one, it stays quiet in the sleep window and does not interrupt the settings screen. Plain ASCII only: emoji and accents are dropped.
+
+1. In `helper/config.json` add the apps you want, for example `"notifyApps": ["com.tinyspeck.slackmacgap", "net.whatsapp.WhatsApp"]`. Use `["*"]` for every app. Leave it empty to keep the feature off.
+2. macOS keeps notifications in a protected database, so give the program that runs the helper **Full Disk Access**: System Settings -> Privacy & Security -> Full Disk Access -> add Terminal (or `node` if you use the LaunchAgent), then restart the helper.
+3. Restart the helper. Its log says `notifications: watching ...`. The first time an app you did not list notifies you, the log shows its id so you can add it.
+
+Needs macOS 15 or later (older versions keep the database elsewhere). Anything already in Notification Center when the helper starts is skipped. This reads a private macOS database, so a future macOS update could break it; if it stops working, the helper log says why.
+
 ## Using it
 
 | Screen | Get there | Touch | Knob |
@@ -180,7 +190,7 @@ Verified in a Linux sandbox:
 - the web editor in headless Chromium against a simulated device (editing, validation, saving, test buttons, phone width)
 - the Mac helper (18 tests, plus an end-to-end run with a fake buddy) and the calendar script (11 tests)
 
-**Not verified** (needs your hardware, Mac or Google account): the clock faces and photo upload on the real display (frame rate, colours, photo storage), Bluetooth bonding across power cycles, the display, touch, knob, LEDs and backlight; WiFi, mDNS and TLS to Google; joining, roaming and switching between several saved WiFi networks; Bluetooth pairing and every shortcut on macOS; `launchctl`, `osascript`, `vm_stat`, `open`, `shortcuts` and the macOS permission prompts; the real Google Calendar API; OTA update; and the PlatformIO build itself. Pin numbers come from the Elecrow wiki. Work through milestone M0 in [docs/BACKLOG.md](docs/BACKLOG.md).
+**Not verified** (needs your hardware, Mac or Google account): reading real macOS notifications (the helper's database query and Full Disk Access were tested only against a fake), the clock faces and photo upload on the real display (frame rate, colours, photo storage), Bluetooth bonding across power cycles, the display, touch, knob, LEDs and backlight; WiFi, mDNS and TLS to Google; joining, roaming and switching between several saved WiFi networks; Bluetooth pairing and every shortcut on macOS; `launchctl`, `osascript`, `vm_stat`, `open`, `shortcuts` and the macOS permission prompts; the real Google Calendar API; OTA update; and the PlatformIO build itself. Pin numbers come from the Elecrow wiki. Work through milestone M0 in [docs/BACKLOG.md](docs/BACKLOG.md).
 
 ## Troubleshooting
 

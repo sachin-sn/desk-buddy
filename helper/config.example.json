@@ -2,5 +2,6 @@
   "token": "PASTE-THE-TOKEN-FROM-THE-BUDDY-WEB-PAGE",
   "port": 8765,
   "deviceUrl": "http://buddy.local",
-  "statsEverySec": 10
+  "statsEverySec": 10,
+  "notifyApps": []
 }

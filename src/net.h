@@ -8,6 +8,7 @@ void netTask(void* arg);
 // Helpers shared with web.cpp (core 0 only)
 void netPostLayout();                                   // re-read the layout from NVS and hand it to the UI
 void netPostToast(const char* text, bool error = false);
+void netPostNote(const char* app, const char* title);      // a Mac notification to show on the buddy (already cleaned)
 void netApplyTime();                                    // (re)configure timezone + NTP
 void netRequestReboot();                                // reboot shortly, after the HTTP reply is sent
 void netRequestCalendar();                              // fetch the calendar at the next opportunity

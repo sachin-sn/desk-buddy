@@ -155,6 +155,19 @@
     },
 
     {
+      "id": "M0-13", "milestone": "M0 Bring-up on hardware", "labels": ["macos", "mac-helper", "firmware"],
+      "title": "Check Mac notifications end to end",
+      "files": ["helper/notifications.js", "src/web.cpp", "src/ui.cpp"],
+      "body": "The helper reads the macOS notification database with sqlite3 and plutil and posts the app name and title to the buddy's /api/notify. Tested only with a fake sqlite3/plutil: the real database schema, the blob keys (titl, subt) and the Full Disk Access prompt are unverified.",
+      "acceptance": [
+        "With notifyApps set and Full Disk Access granted, a Slack or Messages notification shows on the buddy within a few seconds",
+        "The helper log names the app and says it was sent",
+        "Without Full Disk Access the log explains what to enable",
+        "Nothing shows during the sleep window or over the settings screen"
+      ]
+    },
+
+    {
       "id": "M1-01", "milestone": "M1 macOS daily driver", "labels": ["macos", "firmware", "web-ui"],
       "title": "Tune the default shortcut pages to your own apps",
       "files": ["src/layout.cpp", "helper/actions.example.json", "data/www/app.js"],

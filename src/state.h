@@ -39,11 +39,12 @@ struct Layout {
 };
 
 // ------------------------------------------------------------------ core 0 -> core 1
-enum UiMsgType : uint8_t { UI_LAYOUT, UI_TOAST, UI_ERROR };
+enum UiMsgType : uint8_t { UI_LAYOUT, UI_TOAST, UI_ERROR, UI_NOTE };
 struct UiMsg {
   UiMsgType type;
   Layout*   layout;     // UI_LAYOUT: the UI takes ownership and deletes the old one
-  char      text[40];   // UI_TOAST / UI_ERROR
+  char      text[40];   // UI_TOAST / UI_ERROR; UI_NOTE: the title
+  char      text2[24];  // UI_NOTE: the app name
 };
 
 // ------------------------------------------------------------------ core 1 -> core 0

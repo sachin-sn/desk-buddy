@@ -22,6 +22,7 @@ Nothing in this repository has run on a real board yet, so milestone M0 is the r
 | M0-10 | OTA firmware update from the web page | firmware, web-ui |
 | M0-11 | First CI run on GitHub | ci |
 | M0-12 | Check the clock faces and photo on the real display | hardware, firmware, web-ui |
+| M0-13 | Check Mac notifications end to end | macos, mac-helper, firmware |
 | M1-01 | Tune the default shortcut pages to your own apps | macos, firmware, web-ui |
 | M1-02 | Mirror meeting alerts to macOS notifications | mac-helper, firmware |
 | M1-03 | One-tap 'join meeting' | calendar, mac-helper, firmware |
@@ -242,6 +243,23 @@ Done when:
 - [ ] Choosing a face and accent in the web editor changes the clock without a reboot
 - [ ] A photo uploads, shows on the Photo face, and is still there after a power cycle
 - [ ] No visible tearing, and the buddy and swipes still feel responsive while the clock runs
+
+### M0-13 - Check Mac notifications end to end
+
+Labels: `macos` `mac-helper` `firmware`
+
+The helper reads the macOS notification database with sqlite3 and plutil and posts the app name and title to the buddy's /api/notify. Tested only with a fake sqlite3/plutil: the real database schema, the blob keys (titl, subt) and the Full Disk Access prompt are unverified.
+
+Files:
+- `helper/notifications.js`
+- `src/web.cpp`
+- `src/ui.cpp`
+
+Done when:
+- [ ] With notifyApps set and Full Disk Access granted, a Slack or Messages notification shows on the buddy within a few seconds
+- [ ] The helper log names the app and says it was sent
+- [ ] Without Full Disk Access the log explains what to enable
+- [ ] Nothing shows during the sleep window or over the settings screen
 
 ## M1 macOS daily driver
 

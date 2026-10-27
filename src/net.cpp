@@ -58,6 +58,14 @@ void netPostToast(const char* text, bool error) {
   xQueueSend(qToUi, &m, 0);
 }
 
+void netPostNote(const char* app, const char* title) {
+  UiMsg m{};
+  m.type = UI_NOTE;
+  strlcpy(m.text, title, sizeof(m.text));
+  strlcpy(m.text2, app, sizeof(m.text2));
+  xQueueSend(qToUi, &m, 0);                    // queue full: this one is dropped, the next gets through
+}
+
 void netApplyTime() {
   configTzTime(gCfg.tz.c_str(), "pool.ntp.org", "time.google.com", "time.cloudflare.com");
 }

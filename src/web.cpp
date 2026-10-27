@@ -15,6 +15,7 @@
 #include "log.h"
 #include "net.h"
 #include "photostore.h"
+#include "notetext.h"
 #include "settings.h"
 #include "setup_page.h"
 #include "state.h"
@@ -426,6 +427,24 @@ static void handleStats() {
   sendOk();
 }
 
+// The Mac helper forwards Mac notifications here (Bearer token): {"app":"Slack","title":"Priya"}.
+// Only the app name and the title are shown, never the message text. Rate-limited so a chatty app cannot flood the screen.
+static void handleNotify() {
+  if (!requireAuth(true)) return;
+  JsonDocument d;
+  if (deserializeJson(d, server.arg("plain"))) return sendErr(400, "invalid JSON");
+  static uint32_t lastMs = 0;
+  uint32_t now = millis();
+  if (lastMs && now - lastMs < 1500) return sendErr(429, "too many notifications, slow down");
+  char app[24], title[40];
+  noteClean(d["app"] | "", app, sizeof app);
+  noteClean(d["title"] | "", title, 30);       // 28 pt text: about 3 lines fit above the app name
+  if (!title[0] && !app[0]) return sendErr(400, "nothing to show");
+  lastMs = now ? now : 1;
+  netPostNote(app[0] ? app : "Notification", title[0] ? title : "New notification");
+  sendOk();
+}
+
 // ------------------------------------------------------------------ firmware update (OTA)
 static bool   otaAuth = false;
 static String otaErr;
@@ -675,6 +694,7 @@ void webInit() {
   server.on("/api/layout/reset", HTTP_POST, handleLayoutReset);
   server.on("/api/test", HTTP_POST, handleTest);
   server.on("/api/stats", HTTP_POST, handleStats);
+  server.on("/api/notify", HTTP_POST, handleNotify);
   server.on("/api/weather/refresh", HTTP_POST, []() { if (!requireAuth()) return; netRequestWeather(); sendOk(); });
   server.on("/api/calendar/refresh", HTTP_POST, []() { if (!requireAuth()) return; netRequestCalendar(); sendOk(); });
   server.on("/api/reboot", HTTP_POST, []() { if (!requireAuth()) return; sendOk(); netRequestReboot(); });

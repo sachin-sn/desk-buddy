@@ -12,6 +12,7 @@
  * and this helper calls the buddy:
  *
  *   POST <deviceUrl>/api/stats {"cpu":12.5,"ram":61.0}   every few seconds, so the buddy can react to a busy Mac
+ *   POST <deviceUrl>/api/notify {"app":"Slack","title":"Priya"}   a Mac notification (only apps in "notifyApps"; needs Full Disk Access)
  *
  * Safety model
  *   - The buddy only ever sends an action *id*. What the id does lives in actions.json on this Mac,
@@ -29,6 +30,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const readline = require('node:readline');
+const { startNotifications } = require('./notifications');
 const { spawn, execFile } = require('node:child_process');
 
 const VERSION = '0.1.0';
@@ -81,8 +83,13 @@ function validateConfig(raw, baseDir = __dirname) {
   }
   const every = c.statsEverySec === undefined ? 10 : c.statsEverySec;
   if (typeof every !== 'number' || !(every >= 3 && every <= 300)) errors.push('statsEverySec: between 3 and 300');
+  let notifyApps = [];
+  if (c.notifyApps !== undefined) {
+    const ok = Array.isArray(c.notifyApps) && c.notifyApps.length <= 50 && c.notifyApps.every(a => typeof a === 'string' && /^(\*|[A-Za-z0-9._-]{1,100})$/.test(a));
+    if (ok) notifyApps = c.notifyApps; else errors.push('notifyApps: a list of app ids such as ["com.tinyspeck.slackmacgap"], or ["*"] for every app');
+  }
   const actionsFile = path.resolve(baseDir, typeof c.actionsFile === 'string' && c.actionsFile ? c.actionsFile : 'actions.json');
-  return { errors, config: { token: c.token, port, bind, deviceUrl, statsEverySec: every, actionsFile } };
+  return { errors, config: { token: c.token, port, bind, deviceUrl, statsEverySec: every, notifyApps, actionsFile } };
 }
 
 function isStr(v, max = 200) { return typeof v === 'string' && v.length > 0 && v.length <= max; }
@@ -300,6 +307,20 @@ function pushStats(deviceUrl, token, stats) {
   });
 }
 
+function pushNote(deviceUrl, token, note) {
+  return new Promise(resolve => {
+    const body = JSON.stringify({ app: note.app, title: note.title });
+    const u = new URL('/api/notify', deviceUrl);
+    const req = http.request({
+      hostname: u.hostname, port: u.port || 80, path: u.pathname, method: 'POST', timeout: 2500,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), Authorization: `Bearer ${token}` },
+    }, res => { res.resume(); resolve(res.statusCode === 200); });
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));
+    req.end(body);
+  });
+}
+
 function startStats({ deviceUrl, token, everySec, log = () => {} }) {
   if (!deviceUrl) return () => {};
   let prev = cpuSample();
@@ -414,13 +435,17 @@ async function main(argv) {
     log(`${Object.keys(actions).length} action(s): ${Object.keys(actions).join(', ')}`);
   });
   const stopStats = startStats({ deviceUrl: config.deviceUrl, token: config.token, everySec: config.statsEverySec, log });
-  const bye = () => { stopStats(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 1500).unref(); };
+  const stopNotes = config.deviceUrl ? startNotifications({
+    apps: config.notifyApps, log,
+    onNote: n => pushNote(config.deviceUrl, config.token, n).then(ok => log(`notification from ${n.app} ${ok ? 'sent to the buddy' : 'could not be sent (buddy unreachable or busy)'}`)),
+  }) : () => {};
+  const bye = () => { stopStats(); stopNotes(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 1500).unref(); };
   process.on('SIGINT', bye);
   process.on('SIGTERM', bye);
 }
 
 module.exports = { isLanAddress, validateConfig, validateActions, actionToArgv, notifyArgv, clean, realRunner, dryRunner,
-  createServer, cpuPercent, parseVmStat, pushStats, startStats, parseArgs, VERSION };
+  createServer, cpuPercent, parseVmStat, pushStats, pushNote, startStats, parseArgs, VERSION };
 
 if (require.main === module) {
   main(process.argv.slice(2)).catch(e => { console.error('Error: ' + e.message); process.exit(1); });

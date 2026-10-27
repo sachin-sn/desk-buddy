@@ -25,8 +25,9 @@ static Adafruit_NeoPixel  strip(LED_COUNT, PIN_LED_DATA, NEO_GRB + NEO_KHZ800);
 static const uint32_t PAGE_IDLE_MS = 45000;      // shortcuts / timer / agenda go back to the buddy after this
 static const uint32_t SETTINGS_IDLE_MS = 60000;
 static const uint32_t TIMER_ALERT_MS = 120000;
+static const uint32_t NOTE_ALERT_MS  = 6000;
 
-enum AlertSeverity : uint8_t { ALERT_NONE = 0, ALERT_SOON = 1, ALERT_START = 2, ALERT_TIMER = 3 };
+enum AlertSeverity : uint8_t { ALERT_NONE = 0, ALERT_NOTE = 1, ALERT_SOON = 2, ALERT_START = 3, ALERT_TIMER = 4 };
 
 static uint8_t   mode = MODE_BUDDY, returnMode = MODE_BUDDY;
 static Layout*   layout = nullptr;
@@ -256,7 +257,7 @@ static void updateLeds(uint32_t now, uint64_t nowMs) {
   if (gCfg.ledOn) {
     if (mode == MODE_ALERT) {
       bool on = (now / 250) & 1;
-      uint32_t c = alertKind == ALERT_TIMER ? strip.Color(255, 30, 10) : alertKind == ALERT_START ? strip.Color(0, 200, 90) : strip.Color(255, 140, 0);
+      uint32_t c = alertKind == ALERT_TIMER ? strip.Color(255, 30, 10) : alertKind == ALERT_START ? strip.Color(0, 200, 90) : alertKind == ALERT_NOTE ? strip.Color(110, 90, 255) : strip.Color(255, 140, 0);
       for (int i = 0; i < LED_COUNT; i++) px[i] = on ? c : 0;
     } else if (cd.state() == Countdown::RUNNING) {
       float remaining = 1.0f - cd.progress(nowMs);                      // LEDs go out one by one
@@ -377,6 +378,13 @@ static void handleMsg(const UiMsg& m) {
     }
     case UI_TOAST: toast(m.text, 1500); break;
     case UI_ERROR: toast(m.text, 3500); break;
+    case UI_NOTE:
+      // A Mac notification: quiet at night, never over the settings screen, and a newer one replaces an older one.
+      // Meetings and timers outrank it (raiseAlert keeps the more important alert).
+      if (sleeping() || mode == MODE_SETTINGS) break;
+      if (alertKind == ALERT_NOTE) alertKind = ALERT_NONE;
+      raiseAlert(ALERT_NOTE, m.text, m.text2, 0x3B3FA8, NOTE_ALERT_MS);
+      break;
   }
 }
 
