@@ -23,6 +23,7 @@ Nothing in this repository has run on a real board yet, so milestone M0 is the r
 | M0-11 | First CI run on GitHub | ci |
 | M0-12 | Check the clock faces and photo on the real display | hardware, firmware, web-ui |
 | M0-13 | Check Mac notifications end to end | macos, mac-helper, firmware |
+| M0-14 | Check the soft off and wake-up | hardware, firmware |
 | M1-01 | Tune the default shortcut pages to your own apps | macos, firmware, web-ui |
 | M1-02 | Mirror meeting alerts to macOS notifications | mac-helper, firmware |
 | M1-03 | One-tap 'join meeting' | calendar, mac-helper, firmware |
@@ -260,6 +261,22 @@ Done when:
 - [ ] The helper log names the app and says it was sent
 - [ ] Without Full Disk Access the log explains what to enable
 - [ ] Nothing shows during the sleep window or over the settings screen
+
+### M0-14 - Check the soft off and wake-up
+
+Labels: `hardware` `firmware`
+
+Holding the knob for 3 s (or the web Turn off button) blanks the screen and LEDs, stops WiFi and Bluetooth, cuts the LCD and external 5V rails and light-sleeps until the knob is pressed, then restarts. Never run on the board. Measure the current while off with a USB power meter.
+
+Files:
+- `src/power.cpp`
+- `src/input.cpp`
+
+Done when:
+- [ ] Hold 3 s: the screen and LEDs go dark and stay dark, with no crash or reboot loop
+- [ ] A press of the knob wakes and restarts the buddy, and the saved settings are intact
+- [ ] The web Turn off button does the same and the page says what happened
+- [ ] Note the current drawn while off in docs/POWER.md
 
 ## M1 macOS daily driver
 

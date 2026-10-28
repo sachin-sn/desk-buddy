@@ -113,3 +113,7 @@ int  hidBondCount() { return -1; }
 bool hidRun(const char*) { return false; }
 
 #endif
+
+void hidEnd() {
+  BLEDevice::deinit(true);
+}

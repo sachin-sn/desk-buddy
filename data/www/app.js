@@ -843,6 +843,11 @@ $('#settingsSave').addEventListener('click', ev => guarded(ev.target, async () =
   toast(r.rebootNeeded ? 'Saved - restart the buddy to apply the name / Bluetooth change' : 'Saved', 'good');
   pollStatus();
 }));
+$('#poweroff').addEventListener('click', ev => guarded(ev.target, async () => {
+  if (!confirm('Turn the buddy off? This page stops working until you press the knob on the buddy to wake it.')) return;
+  await api('/api/power/off', {});
+  toast('Turning off - press the knob on the buddy to wake it', 'good');
+}));
 $('#reboot').addEventListener('click', ev => guarded(ev.target, async () => {
   if (!confirm('Restart the buddy now?')) return;
   await api('/api/reboot', {});

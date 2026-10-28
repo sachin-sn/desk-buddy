@@ -1,5 +1,6 @@
 #include "net.h"
 #include "photostore.h"
+#include "power.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <DNSServer.h>
@@ -416,6 +417,7 @@ void netTask(void*) {
 
   for (;;) {
     webLoop();
+    if (powerOffRequested()) powerDown();            // does not return
     if (apActive) dns.processNextRequest();
 
     NetCmd c;

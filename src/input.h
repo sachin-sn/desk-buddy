@@ -7,11 +7,12 @@
 #define ENC_REVERSE 0            // set 1 if clockwise reads as counter-clockwise
 
 #define BTN_LONG_MS   800
+#define BTN_VLONG_MS  3000        // hold the knob this long (from any screen) to turn the buddy off
 #define TOUCH_LONG_MS 700
 #define SWIPE_MIN_PX  40
 
 enum InputType : uint8_t {
-  IN_ENC_CW, IN_ENC_CCW, IN_BTN_SHORT, IN_BTN_LONG,
+  IN_ENC_CW, IN_ENC_CCW, IN_BTN_SHORT, IN_BTN_LONG, IN_BTN_VLONG,
   IN_SWIPE_L, IN_SWIPE_R, IN_SWIPE_U, IN_SWIPE_D,
   IN_TAP, IN_LONG_TOUCH
 };

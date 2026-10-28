@@ -119,6 +119,12 @@ The helper can show your Mac's notifications on the buddy: the screen turns indi
 
 Needs macOS 15 or later (older versions keep the database elsewhere). Anything already in Notification Center when the helper starts is skipped. This reads a private macOS database, so a future macOS update could break it; if it stops working, the helper log says why.
 
+### Turning it off
+
+**Soft off:** hold the knob for 3 seconds on any screen, or press **Turn off** in the web editor (Settings). The screen and LEDs go dark, WiFi and Bluetooth stop, and the buddy sleeps until you press the knob, then it restarts (a few seconds). A running timer keeps counting and says "FINISHED while away" if it ran out. It is not a real power switch: the board stays powered and still draws a few mA, and the web editor is unreachable until you wake it.
+
+**Hard off:** for zero draw put a small slide switch in the +5V wire between your power source (or the battery module) and J37 pin 1. Do not cut the ground wire or the data lines. See docs/POWER.md.
+
 ## Using it
 
 | Screen | Get there | Touch | Knob |
@@ -129,6 +135,7 @@ Needs macOS 15 or later (older versions keep the database elsewhere). Anything a
 | **Timer** | swipe left again | tap or knob press: start / pause; swipe up/down: next preset | turn: set the time (when stopped); long press (knob or touch): reset; long touch with nothing to reset opens settings |
 | **Agenda** | swipe left again | tap: refresh | - |
 | **Weather** (once switched on) | swipe left again | tap: refresh | - |
+| **Any screen** | hold the knob for 3 seconds | the buddy turns off (soft off, see below) | press the knob to wake it |
 | **Settings** | long press | tap: close | turn: brightness |
 
 Swipe left goes forward through *Buddy -> Clock -> Shortcuts -> Timer -> Agenda -> Weather -> Buddy* (Weather only appears once you have switched it on in the web editor); swipe right goes back. Any screen returns to the buddy after 45 seconds (the clock after 15). Any touch or press dismisses a meeting or timer alert.
@@ -190,7 +197,7 @@ Verified in a Linux sandbox:
 - the web editor in headless Chromium against a simulated device (editing, validation, saving, test buttons, phone width)
 - the Mac helper (18 tests, plus an end-to-end run with a fake buddy) and the calendar script (11 tests)
 
-**Not verified** (needs your hardware, Mac or Google account): reading real macOS notifications (the helper's database query and Full Disk Access were tested only against a fake), the clock faces and photo upload on the real display (frame rate, colours, photo storage), Bluetooth bonding across power cycles, the display, touch, knob, LEDs and backlight; WiFi, mDNS and TLS to Google; joining, roaming and switching between several saved WiFi networks; Bluetooth pairing and every shortcut on macOS; `launchctl`, `osascript`, `vm_stat`, `open`, `shortcuts` and the macOS permission prompts; the real Google Calendar API; OTA update; and the PlatformIO build itself. Pin numbers come from the Elecrow wiki. Work through milestone M0 in [docs/BACKLOG.md](docs/BACKLOG.md).
+**Not verified** (needs your hardware, Mac or Google account): the soft off and wake-on-knob (light sleep, Bluetooth shutdown, how much power it saves), reading real macOS notifications (the helper's database query and Full Disk Access were tested only against a fake), the clock faces and photo upload on the real display (frame rate, colours, photo storage), Bluetooth bonding across power cycles, the display, touch, knob, LEDs and backlight; WiFi, mDNS and TLS to Google; joining, roaming and switching between several saved WiFi networks; Bluetooth pairing and every shortcut on macOS; `launchctl`, `osascript`, `vm_stat`, `open`, `shortcuts` and the macOS permission prompts; the real Google Calendar API; OTA update; and the PlatformIO build itself. Pin numbers come from the Elecrow wiki. Work through milestone M0 in [docs/BACKLOG.md](docs/BACKLOG.md).
 
 ## Troubleshooting
 

@@ -88,16 +88,18 @@ static void touchPoll() {
 
 // ------------------------------------------------------------------ knob button
 static void buttonPoll() {
-  static bool pressed = false, longSent = false, lastRaw = false;
+  static bool pressed = false, longSent = false, vlongSent = false, lastRaw = false;
   static uint32_t tChange = 0, tPress = 0;
   uint32_t now = millis();
   bool raw = digitalRead(PIN_ENC_SW) == LOW;     // active low
   if (raw != lastRaw) { lastRaw = raw; tChange = now; }
   if (now - tChange < 25) return;                // debounce
 
-  if (raw && !pressed) { pressed = true; longSent = false; tPress = now; }
+  if (raw && !pressed) { pressed = true; longSent = false; vlongSent = false; tPress = now; }
   else if (raw && pressed && !longSent && now - tPress >= BTN_LONG_MS) {
     longSent = true; push(IN_BTN_LONG);
+  } else if (raw && pressed && longSent && !vlongSent && now - tPress >= BTN_VLONG_MS) {
+    vlongSent = true; push(IN_BTN_VLONG);
   } else if (!raw && pressed) {
     pressed = false;
     if (!longSent) push(IN_BTN_SHORT);

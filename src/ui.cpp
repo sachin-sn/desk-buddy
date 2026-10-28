@@ -1,5 +1,6 @@
 // UI controller (core 1): modes, navigation, input, timer, meeting alerts, LED ring.
 #include "ui.h"
+#include "power.h"
 #include <lvgl.h>
 #include <Adafruit_NeoPixel.h>
 #include <esp_heap_caps.h>
@@ -422,6 +423,8 @@ static void onInput(const InputEvent& ev) {
   uint32_t now = millis();
   lastActivity = now;
 
+  if (ev.type == IN_BTN_VLONG) { toast("Turning off...", 3000); powerRequestOff(); return; }     // from any screen
+
   if (mode == MODE_ALERT) {
     if (ev.type == IN_BTN_SHORT || ev.type == IN_BTN_LONG || ev.type == IN_TAP || ev.type == IN_LONG_TOUCH ||
         ev.type == IN_SWIPE_L || ev.type == IN_SWIPE_R || ev.type == IN_SWIPE_U || ev.type == IN_SWIPE_D) dismissAlert();
@@ -543,9 +546,17 @@ void uiInit() {
   gotoMode(MODE_BUDDY);
 }
 
+// Soft off: blank the screen and the LEDs, tell the network task we are done, and stop doing anything.
+static void goDark() {
+  for (int i = 0; i < 3; i++) { tft.setBrightness(0); strip.clear(); strip.show(); vTaskDelay(pdMS_TO_TICKS(20)); }
+  powerSetUiParked();
+  for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+}
+
 void uiTask(void*) {
   uint32_t tRefresh = 0, tClock = 0;
   for (;;) {
+    if (powerOffRequested()) goDark();                // never returns
     UiMsg m;
     while (xQueueReceive(qToUi, &m, 0) == pdTRUE) handleMsg(m);
 

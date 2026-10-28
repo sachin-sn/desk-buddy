@@ -16,6 +16,7 @@
 #include "net.h"
 #include "photostore.h"
 #include "notetext.h"
+#include "power.h"
 #include "settings.h"
 #include "setup_page.h"
 #include "state.h"
@@ -697,6 +698,7 @@ void webInit() {
   server.on("/api/notify", HTTP_POST, handleNotify);
   server.on("/api/weather/refresh", HTTP_POST, []() { if (!requireAuth()) return; netRequestWeather(); sendOk(); });
   server.on("/api/calendar/refresh", HTTP_POST, []() { if (!requireAuth()) return; netRequestCalendar(); sendOk(); });
+  server.on("/api/power/off", HTTP_POST, []() { if (!requireAuth()) return; sendOk(); powerRequestOff(); });
   server.on("/api/reboot", HTTP_POST, []() { if (!requireAuth()) return; sendOk(); netRequestReboot(); });
   server.on("/update", HTTP_POST, otaDone, otaChunk);
   server.on("/api/photo", HTTP_GET, handlePhotoGet);

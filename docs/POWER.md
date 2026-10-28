@@ -53,6 +53,10 @@ use the Elecrow USB cable on J37, then swap back. Do not connect both at once: t
 sources on the same rail fight, and the module's output would feed the computer's USB
 port.
 
+### An on/off switch
+
+The board has no power button. Put a small slide or rocker switch (rated for at least 1 A) in series with the **+5V** wire between the module's output and J37 pin 1; leave ground connected. If you use a battery module with its own switch or button, use that instead. The firmware also has a soft off (hold the knob 3 s): the screen, LEDs, WiFi and Bluetooth stop and the buddy light-sleeps, which saves most of the power but not all of it, so use the switch if the buddy will be off for days.
+
 ### Candidates
 
 | Module | Good | Watch out |
